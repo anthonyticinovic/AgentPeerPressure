@@ -28,7 +28,39 @@ Measured on this machine: **Apple M4 Pro, 12 cores, 24 GB unified memory, macOS 
 
 The 4B is not a stand-in for the 9B result — it is the plan's declared iteration model and its cheap scale baseline (§6.4). Every local run is a correctness check on the *pipeline*, never a source of a reported number, with the single exception of the 4B scale row.
 
-**Scheduling consequence:** remote compute must be live from hour 1, not hour 7. Book it before starting the clock.
+**Scheduling consequence:** the reported 9B numbers need remote compute. Spartan is deliberately deferred (see §0b) — every phase runs end-to-end at 4B first.
+
+---
+
+## 0b. Resolved facts and decisions (Checkpoint 1, 2026-08-20)
+
+**Strategy: local-first.** Run the entire pipeline end-to-end on the local 4B before touching Spartan. Spartan is then a confirmation pass on frozen, debugged code, not a place to discover bugs while burning queue time.
+
+**Gate semantics under local-first:**
+
+| Gate | At 4B | At 9B |
+|---|---|---|
+| B (AUROC ≥ 0.9, C0 refusal ≥ 70%) | **Advisory.** A small model with a weak refusal direction is not evidence to abort | **Binding** |
+| B2 (cosine > 0.9) | **Advisory** | **Binding** |
+| P (C2 − C0 ≥ 10pp) | **Informative.** If peer framing moves a 4B, that is real signal about the manipulation. A null is ambiguous | **Binding** |
+| C (harness coherence) | **Binding.** A 4B that cannot follow the harness tells you to simplify it now | **Binding** |
+
+Every 4B number is provisional and is recorded as such. None enters the write-up except the §6.4 scale row.
+
+**Models — resolved against the live Hub, not assumed.** The plan named "Qwen 3.6 9B/4B". The 3.6 line ships only 27B and 35B-A3B; there is no 3.6 dense model at 9B or 4B. Assumption A3's own fallback therefore applies.
+
+| Role | Repo | Layers | Hidden | bf16 |
+|---|---|---|---|---|
+| Reported (Spartan) | `Qwen/Qwen3.5-9B` | 32 | 4096 | ~18 GB |
+| Local iteration + §6.4 scale row | `Qwen/Qwen3.5-4B` | 32 | 2560 | ~8 GB |
+
+Both have **32 layers**, so `l*` is directly comparable across the scale check — a stronger scale row than the plan assumed.
+
+**Module path verified:** `AutoConfig` reports the multimodal wrapper `Qwen3_5ForConditionalGeneration`, but `AutoModelForCausalLM` yields the text-only `Qwen3_5ForCausalLM` with its decoder at `model.model.layers`. The plan's hook path is correct. Verified on meta device — no weights downloaded.
+
+**Thinking mode: DISABLED.** Qwen3.5's template enables thinking by default (`...assistant\n<think>\n`). `enable_thinking=False` renders `...assistant\n<think>\n\n</think>\n\n` instead. Rationale: Arditi and Zhao built their constructs on non-thinking models so the directions transfer on their intended terms; `p*` stays well-defined; rollout cost stays inside the 20 h budget. **Consequence for Task 1.3:** the last ~6 tokens are template, so the offset sweep must reach back to −12 to include content positions. State this decision in the write-up's Limitations — thinking-on agents are the realistic 2026 case and are not tested here.
+
+**Environment:** Python 3.12.13, torch 2.13.0 (MPS available), transformers 5.15.1, inspect-ai, pytest 9.1.1, managed by `uv`.
 
 ---
 
@@ -97,19 +129,19 @@ Files that change together live together: `boards.py` owns both the board data c
 
 **Files:** Create `pyproject.toml`, `.gitignore`, `.python-version`
 
-- [ ] **Step 1: Initialise the project**
+- [x] **Step 1: Initialise the project**
 
 ```bash
 cd /Users/Anthony/Documents/Repos/AgentPeerPressure && uv init --name pressure --python 3.12 --lib
 ```
 
-- [ ] **Step 2: Add dependencies**
+- [x] **Step 2: Add dependencies**
 
 ```bash
 uv add torch transformers accelerate datasets scikit-learn scipy matplotlib pandas huggingface-hub inspect-ai && uv add --dev pytest
 ```
 
-- [ ] **Step 3: Verify MPS is available**
+- [x] **Step 3: Verify MPS is available**
 
 Run:
 ```bash
@@ -117,7 +149,7 @@ uv run python -c "import torch; print(torch.__version__, torch.backends.mps.is_a
 ```
 Expected: version string then `True`.
 
-- [ ] **Step 4: Write `.gitignore`**
+- [x] **Step 4: Write `.gitignore`**
 
 ```gitignore
 .venv/
@@ -130,7 +162,7 @@ results/
 .env
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add pyproject.toml uv.lock .gitignore .python-version && git commit -m "chore: python environment"
@@ -140,7 +172,7 @@ git add pyproject.toml uv.lock .gitignore .python-version && git commit -m "chor
 
 **Files:** Create `src/pressure/config.py`
 
-- [ ] **Step 1: Write the config**
+- [x] **Step 1: Write the config**
 
 ```python
 """Central configuration. Every tunable lives here, nothing is hard-coded downstream."""
@@ -200,7 +232,7 @@ class Config:
 CFG = Config()
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/pressure/config.py && git commit -m "feat: central config"
@@ -212,7 +244,7 @@ The plan names "Qwen 3.6 9B" and "Qwen 3.6 4B". Repo ids must be resolved agains
 
 **Files:** Create `.env`
 
-- [ ] **Step 1: List candidate instruct repos**
+- [x] **Step 1: List candidate instruct repos**
 
 ```bash
 uv run python -c "
@@ -222,7 +254,7 @@ for m in HfApi().list_models(author='Qwen', search='Instruct', sort='downloads',
 "
 ```
 
-- [ ] **Step 2: Confirm the chosen repos exist and read their configs**
+- [x] **Step 2: Confirm the chosen repos exist and read their configs**
 
 ```bash
 uv run python -c "
@@ -234,13 +266,13 @@ for r in ['<EVAL_REPO_ID>', '<ITER_REPO_ID>']:
 ```
 Expected: two lines, layer counts and hidden sizes printed. Record `num_hidden_layers` — the sweep in Task 1.3 uses it.
 
-- [ ] **Step 3: Write `.env` with the resolved ids**
+- [x] **Step 3: Write `.env` with the resolved ids**
 
 ```bash
 printf 'PRESSURE_EVAL_MODEL=<EVAL_REPO_ID>\nPRESSURE_ITER_MODEL=<ITER_REPO_ID>\n' > .env
 ```
 
-- [ ] **Step 4: Record the fallback decision**
+- [x] **Step 4: Record the fallback decision**
 
 If the 3.6 series is unavailable, fall back to Qwen 3.5 9B per assumption A3 and write one line in `docs/hypotheses.md` stating which model was used and why. Do not silently substitute.
 

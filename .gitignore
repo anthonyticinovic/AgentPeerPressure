@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+.env
+
+# Run outputs. Summaries are committed explicitly with `git add -f`.
+results/
+
+# Model/tensor blobs, except the frozen pre-registration artefact.
+*.pt
+*.npz
+!artifacts/frozen/*.npz
