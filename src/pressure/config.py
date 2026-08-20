@@ -12,17 +12,9 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import torch
+from .device import resolve_device, resolve_dtype
 
 ROOT = Path(__file__).resolve().parents[2]
-
-
-def _device() -> str:
-    if torch.cuda.is_available():
-        return "cuda"
-    if torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
 
 
 @dataclass(frozen=True)
@@ -32,8 +24,15 @@ class Config:
     # only, never a reported number, except the single scale row in the control table.
     eval_model: str = os.getenv("PRESSURE_EVAL_MODEL", "Qwen/Qwen3.5-9B")
     iter_model: str = os.getenv("PRESSURE_ITER_MODEL", "Qwen/Qwen3.5-4B")
-    dtype: torch.dtype = torch.bfloat16
-    device: str = field(default_factory=_device)
+
+    # Device and dtype are resolved per-backend in device.py, not fixed here.
+    # Set PRESSURE_DEVICE to force one (e.g. "cpu" for a numerics check).
+    device_override: str | None = os.getenv("PRESSURE_DEVICE") or None
+    device: str = field(default_factory=lambda: resolve_device(os.getenv("PRESSURE_DEVICE") or None))
+
+    @property
+    def dtype(self):
+        return resolve_dtype(self.device)
 
     # Qwen3.5 enables thinking by default. Disabled here: Arditi and Zhao both built
     # their constructs on non-thinking models, p* stays well-defined, and rollout cost

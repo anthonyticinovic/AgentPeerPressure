@@ -7,14 +7,20 @@ transformers 5.x: `AutoConfig` for Qwen3.5 reports the multimodal wrapper
 
 from __future__ import annotations
 
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from .config import CFG
+from .device import (
+    attn_implementation,
+    available_memory_gb,
+    resolve_device,
+    resolve_dtype,
+)
 
-# Approximate bf16 weight footprint, for the local-memory guard.
-_APPROX_GB = {"Qwen/Qwen3.5-9B": 18.0, "Qwen/Qwen3.5-4B": 8.0, "Qwen/Qwen3.5-2B": 4.0}
-_MPS_BUDGET_GB = 14.0
+# Approximate bf16 weight footprint. Checked against the device's real available
+# memory rather than a hard-coded budget, so the same guard works on MPS and CUDA.
+_WEIGHTS_GB = {"Qwen/Qwen3.5-9B": 18.0, "Qwen/Qwen3.5-4B": 8.0, "Qwen/Qwen3.5-2B": 4.0}
+_ACTIVATION_HEADROOM = 1.25
 
 
 def repo_for(eval_model: bool) -> str:
@@ -22,19 +28,24 @@ def repo_for(eval_model: bool) -> str:
 
 
 def load_model(eval_model: bool = True, device: str | None = None):
-    """Return (model, tokenizer). Refuses loads that cannot fit the local device."""
+    """Return (model, tokenizer). Refuses loads that cannot fit the target device."""
     repo = repo_for(eval_model)
-    device = device or CFG.device
+    device = resolve_device(device or CFG.device_override)
+    dtype = resolve_dtype(device)
 
-    if device == "mps" and _APPROX_GB.get(repo, 0.0) > _MPS_BUDGET_GB:
+    need = _WEIGHTS_GB.get(repo, 0.0) * _ACTIVATION_HEADROOM
+    have = available_memory_gb(device)
+    if need and need > have:
         raise RuntimeError(
-            f"{repo} needs ~{_APPROX_GB[repo]}GB bf16, over the ~{_MPS_BUDGET_GB}GB MPS "
-            "budget on a 24GB machine. Run it on CUDA. Do not quantise to fit — "
-            "quantisation perturbs the residual stream and invalidates the frozen artefact."
+            f"{repo} needs ~{need:.0f}GB including activation headroom; {device} reports "
+            f"{have:.1f}GB available. Run it on CUDA. Do not quantise to fit — quantisation "
+            "perturbs the residual stream and invalidates the frozen artefact."
         )
 
     tok = AutoTokenizer.from_pretrained(repo)
-    model = AutoModelForCausalLM.from_pretrained(repo, dtype=CFG.dtype)
+    model = AutoModelForCausalLM.from_pretrained(
+        repo, dtype=dtype, attn_implementation=attn_implementation(device)
+    )
     model.to(device)
     model.eval()
     return model, tok

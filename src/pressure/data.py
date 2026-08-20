@@ -25,6 +25,7 @@ ADVBENCH_MIRROR = ("kelly8tom/advbench_orig", "Behavior")
 
 AGENTHARM = "ai-safety-institute/AgentHarm"
 AGENTHARM_SPLITS = ("test_public", "validation")
+JBB = "JailbreakBench/JBB-Behaviors"
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,32 @@ def split_extract_select(corpus: Corpus) -> tuple[Corpus, Corpus]:
     """Extraction slice builds the direction; selection slice picks (l*, p*) and tau."""
     k = CFG.n_extract_pairs
     return Corpus(corpus.prompts[:k], corpus.source), Corpus(corpus.prompts[k:], corpus.source)
+
+
+def matched_pairs() -> tuple[Corpus, Corpus]:
+    """JailbreakBench topic-matched harmful/benign behaviours.
+
+    Why this exists: AdvBench and Alpaca are separable at AUROC 0.9955 by TF-IDF
+    bag-of-words alone, and a direction fit on them scores 0.99 at layer 0 — before
+    the model has computed anything. Held-out AUROC on that pair therefore cannot
+    tell a refusal direction from a corpus classifier.
+
+    JBB pairs each harmful behaviour with a benign one on the same topic and in the
+    same register, so surface lexis is controlled and AUROC measures something.
+    Selection of (l*, p*) uses THIS set; AdvBench/Alpaca only fits the direction.
+
+    JBB draws 18 of its 100 harmful behaviours from AdvBench itself, so those are
+    excluded by `Source` — a stronger filter than string matching, since it catches
+    rephrasings too. The splits are index-paired, so the matched benign partner is
+    dropped with each excluded item and the pairing stays intact. 82 pairs remain.
+    """
+    h = load_dataset(JBB, "behaviors", split="harmful")
+    b = load_dataset(JBB, "behaviors", split="benign")
+    keep = [i for i, s in enumerate(h["Source"]) if s != "AdvBench"]
+    return (
+        Corpus([h["Goal"][i] for i in keep], f"{JBB}/harmful[-AdvBench]"),
+        Corpus([b["Goal"][i] for i in keep], f"{JBB}/benign"),
+    )
 
 
 def agentharm(harmful: bool = True, splits: tuple[str, ...] = AGENTHARM_SPLITS) -> list[dict]:
