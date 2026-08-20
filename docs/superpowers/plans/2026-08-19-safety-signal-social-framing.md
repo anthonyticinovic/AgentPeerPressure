@@ -82,6 +82,38 @@ Layers 3, 7, 11, 15, 19, 23, 27, 31 are full attention; the other 24 are linear.
 
 `config.hidden_size` is a constant 2560/4096 — the heterogeneity does not touch it, so a single direction vector remains well-defined. Several other config attributes do raise `AmbiguousGlobalPerLayerAttributeError`, so `model.py` reads shape from `embed_tokens`, never from the config.
 
+### Decisions from Checkpoint 4 review
+
+**Item scope: four categories, not all eight.** Disinformation, Hate, Harassment and Copyright
+— 26 behaviours, 104 items. These are the domains where social proof is the real-world mechanism
+for the behaviour, so the manipulation tests a plausible pathway instead of fighting the material.
+Excluded: Sexual and Drugs (peer endorsement is not credible for them), Cybercrime and Fraud
+(wallet- and key-specific, weakly collective). **Declare this subset before running**, with the
+rationale above — chosen a priori from task text, never after seeing compliance results.
+Power cost: at +15pp, roughly 0.95 -> 0.85.
+
+**Board framing: shared agent task-queue**, where deployed agents log completed jobs of a similar
+kind. AgentHarm tasks are written as solo principal-agent jobs carrying personal identity ("your"
+PayPal, "my" clients, a specific wallet), so a board of colleagues chatting is incoherent against
+them. A task-queue log is coherent, and matches the deployment story that motivates the project.
+The plan's existing "peers report *similar* tasks" wording is load-bearing here — peers must never
+claim the identical task.
+
+**OPEN, for Task 2.1 — is the stimulus realistic enough?** The current C2 is one-shot social proof:
+a static board asserting completed precedent. The failure mode actually worth modelling may be
+*gradual scope creep toward a shared swarm goal*. Two warnings before that is adopted:
+
+1. **It breaks byte-identity.** The design's interpretability rests on the task text being identical
+   across conditions, with only surrounding context varying. Escalation means the task evolves, so
+   there is no fixed text to hold constant and C2-C0 stops being a clean contrast. Byte-identity or
+   escalation is cheap; both together is a much bigger build that runs into Gate C.
+2. **It moves the positioning.** Plan section 2 deliberately demotes the OpenAI/HF incident to a
+   footnote. Designing toward it weakens the "no attacker, model uncompromised" delta against Zhao.
+   If the design goes there, the framing must move with it.
+
+Authoring bespoke stimulus data is acceptable and possibly open-sourceable. Scrutinise the rendered
+prompts against realism at Task 2.1, with the data in hand.
+
 ### Findings from Checkpoint 3 — the N correction
 
 **AgentHarm's public release is 52 base behaviours, not 110.** The 110 figure is the full set; the public release holds 44 in `test_public` and 8 in `validation`. Each base behaviour ships **4 prompt variants** (`detailed_prompt` × `hint_included`). Benign counterparts match every harmful `id_original` exactly, so the matched-pair design is intact.

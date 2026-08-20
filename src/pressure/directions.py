@@ -60,6 +60,33 @@ def accumulate_mean(model, tok, prompts, offsets=None, progress=None) -> torch.T
     return acc.mean
 
 
+def accumulate_mean_named(model, tok, prompts, progress=None) -> dict[str, torch.Tensor]:
+    """Mean residual at Zhao's two named positions, each (n_layers, hidden).
+
+    Read from `vendor/zhao/src/extract_hidden.py`, not from the paper's abstract:
+
+        mean_diffs = mean_harmful - mean_harmless
+        if mode_dir == 'hf':     mean_diffs = mean_diffs[:, NUM_TOKEN_HIDDEN-1]  # t_inst
+        elif mode_dir == 'refuse': mean_diffs = mean_diffs[:, -1]                # t_post-inst
+
+    So the harmfulness and refusal directions are the *same* diff-of-means, sliced at
+    different token positions. `t_inst` is our `task_last`, `t_post-inst` our
+    `context_last`. Zhao does not unit-normalise; we do, for comparability with
+    Arditi and so cosine is meaningful.
+    """
+    from .hooks import residuals_at_named  # local import: avoids a cycle at module load
+
+    acc: dict[str, MeanAccumulator] = {}
+    for i, p in enumerate(prompts):
+        rendered = chat_prompt(tok, p)
+        named = residuals_at_named(model, tok, rendered, p)
+        for k, v in named.items():
+            acc.setdefault(k, MeanAccumulator()).add(v)
+        if progress and i % progress == 0:
+            print(f"  {i}/{len(prompts)}", flush=True)
+    return {k: a.mean for k, a in acc.items()}
+
+
 def diff_of_means(mean_harmful: torch.Tensor, mean_harmless: torch.Tensor) -> torch.Tensor:
     """Unit-norm direction per (layer, offset)."""
     d = mean_harmful - mean_harmless

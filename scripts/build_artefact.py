@@ -17,7 +17,9 @@ OUT = Path("artifacts/inspection.html")
 def build() -> str:
     sweep = json.loads((CFG.results_dir / "r_ref_sweep.json").read_text())
     samples = json.loads((CFG.results_dir / "dataset_samples.json").read_text())
-    payload = json.dumps({"sweep": sweep, "samples": samples}, indent=None)
+    dual_p = CFG.results_dir / "dual_directions.json"
+    dual = json.loads(dual_p.read_text()) if dual_p.exists() else None
+    payload = json.dumps({"sweep": sweep, "samples": samples, "dual": dual}, indent=None)
     return TEMPLATE.replace("__DATA__", payload)
 
 
@@ -96,17 +98,51 @@ td.num{text-align:right}
 @media(max-width:720px){.two{grid-template-columns:1fr}}
 .note{font-size:14px;color:var(--ink-soft);border-top:1px solid var(--rule);padding-top:14px}
 code{font-family:"IBM Plex Mono",monospace;font-size:.88em;background:var(--accent-soft);padding:1px 5px}
+.formula{white-space:pre-wrap;font-size:13.5px;border-left:3px solid var(--accent);line-height:1.7}
+.cap{font-size:13px;color:var(--ink-soft);margin:0 0 10px}
+td.role{font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;font-size:11px}
+.r-fit{color:var(--warn)} .r-sel{color:var(--accent)} .r-eval{color:var(--ok)}
 </style>
 
 <div class="wrap">
 <header>
-  <div class="label">MATS 12.0 · Checkpoint 4 · local 4B pass</div>
+  <div class="label">MATS 12.0 · Checkpoints 4–5 · local 4B pass</div>
   <h1>The refusal direction was reading the dataset, not the danger</h1>
-  <p class="sub">A held-out AUROC of 1.000 looked like a clean extraction. It was an artefact of the
-  standard corpus pair. This page shows the evidence, the corrected selection, and the data the
-  pipeline actually runs on.</p>
+  <p class="sub">A held-out AUROC of 1.000 looked like a clean extraction; it was an artefact of the
+  standard corpus pair. Below: the evidence, the corrected matched-pair selection, the Gate B2 test
+  that decides whether this is a two-direction project, and the data the pipeline runs on.</p>
   <div class="meta" id="meta"></div>
 </header>
+
+<section>
+  <div class="label">What was computed</div>
+  <h2>One candidate direction per layer and position</h2>
+  <p>The quantity is Arditi's diff-of-means. At every layer and every token position, take the mean
+  residual-stream activation over harmful prompts, subtract the mean over harmless prompts, and
+  normalise to unit length:</p>
+  <div class="panel formula mono">r_ref[layer, offset] = mean(harmful activations) &minus; mean(harmless activations),
+normalised</div>
+  <p>That yields <strong>288 candidate vectors</strong> — 32 layers &times; 9 token offsets — not one.
+  The sweep's only job is to decide which cell to trust. It is a correlational object at this stage:
+  it <em>discriminates</em> harmful requests from benign ones, but whether it <em>causes</em> refusal
+  is unproven until the ablation test. Calling it “the refusal direction” before that would be
+  overclaiming.</p>
+  <p>The second direction, <code>r_harm</code>, is now built too — see Gate B2 below. It uses the
+  identical computation on the identical corpus, read at a different token. Both remain
+  correlational until the ablation test.</p>
+</section>
+
+<section>
+  <div class="label">Data</div>
+  <h2>Three roles, three separate corpora</h2>
+  <p>Fitting, selecting, and evaluating each use a <em>different dataset</em>. That separation is
+  structural, not a row split, and it is what makes the leakage question answerable.</p>
+  <div class="scroll"><table id="roles"></table></div>
+  <p class="note">Deliberately unused: the old AdvBench/Alpaca selection slice (retained only to
+  report the vacuous number), JBB's 18 AdvBench-sourced items and their benign partners, HarmBench,
+  and StrongREJECT.</p>
+</section>
 
 <section>
   <div class="label">Finding</div>
@@ -138,14 +174,47 @@ code{font-family:"IBM Plex Mono",monospace;font-size:.88em;background:var(--acce
   leakage assertion caught that 18 of JBB's 100 harmful behaviours are themselves drawn from
   AdvBench; those are excluded by source, along with their index-matched benign partners, leaving
   82 clean pairs.</p>
+  <p><strong>Both grids below show the same 288 directions</strong>, scored against two different
+  test sets. Nothing about the vectors changed between them — only what they were measured on.</p>
   <div class="grids">
-    <div><h3>Selection: matched pairs</h3><div id="hm-m"></div></div>
-    <div><h3>Vacuous: AdvBench vs Alpaca</h3><div id="hm-u"></div></div>
+    <div><h3>Scored on JBB matched pairs</h3>
+      <p class="cap">The honest measurement. Structure across depth; layer 0 near chance.</p>
+      <div id="hm-m"></div></div>
+    <div><h3>Scored on AdvBench vs Alpaca</h3>
+      <p class="cap">Saturated everywhere, layer 0 included. This is what a corpus classifier looks like.</p>
+      <div id="hm-u"></div></div>
   </div>
   <div class="legend"><span>AUROC 0.50</span><div class="ramp" id="ramp"></div><span>1.00</span>
     <span style="margin-left:14px;color:var(--accent)">■ full-attention layer</span></div>
   <p class="note">Same colour scale on both. The left grid is the honest measurement; the right is
   near-saturated everywhere, which is what a corpus classifier looks like.</p>
+</section>
+
+<section id="dual-sec">
+  <div class="label">Gate B2</div>
+  <h2>Two directions, or one wearing two hats?</h2>
+  <p>Reading Zhao et al.'s released code rather than their abstract settled a question the plan had
+  wrong. Their harmfulness direction is <em>the same diff-of-means</em> as Arditi's refusal direction.
+  The only difference is which token it is read at:</p>
+  <div class="panel formula mono">if   mode_dir == 'hf':     mean_diffs[:, NUM_TOKEN_HIDDEN-1]   # t_inst      -> harmfulness
+elif mode_dir == 'refuse': mean_diffs[:, -1]                   # t_post-inst -> refusal</div>
+  <p>So the whole two-signal claim rests on read position, not on construct — which made this gate
+  the project's real risk rather than a formality. <code>t_inst</code> is our <code>task_last</code>,
+  <code>t_post-inst</code> our <code>context_last</code>; the plan had invented both to control a
+  long-context confound, before knowing they were Zhao's.</p>
+  <div class="panel" id="b2verdict"></div>
+  <div class="two">
+    <div><h3>AUROC by layer</h3>
+      <p class="cap">Scored on matched pairs. The harmfulness probe is markedly weaker.</p>
+      <svg class="prof" id="dual-auroc" viewBox="0 0 800 250" preserveAspectRatio="none"></svg></div>
+    <div><h3>cos(r_harm, r_ref) by layer</h3>
+      <p class="cap">Near-orthogonal throughout. Threshold for failure is 0.9.</p>
+      <svg class="prof" id="dual-cos" viewBox="0 0 800 250" preserveAspectRatio="none"></svg></div>
+  </div>
+  <p class="note">Caveat that matters for H2: at AUROC 0.73 the harmfulness direction is a noisy
+  instrument. “The harmfulness signal is preserved” is a much weaker claim measured at 0.73 than at
+  0.98, and a decline toward chance is correspondingly harder to separate from noise. Whether this is
+  the 4B's size or a property of the model family is a question for the 9B.</p>
 </section>
 
 <section>
@@ -279,6 +348,57 @@ SA.agentharm_variants.forEach(v=>document.getElementById('s-var').append(
         ['category',v.category]], v.prompt, v.target_functions)));
 document.getElementById('s-ben').append(card([['name',SA.agentharm_benign_counterpart.name]],
   SA.agentharm_benign_counterpart.prompt, SA.agentharm_benign_counterpart.target_functions));
+
+const roles=[
+ ['AdvBench (harmful)', S.n_extract, 'fit','r-fit','Compute the harmful mean','Select l*; evaluate'],
+ ['Alpaca (harmless)', S.n_extract, 'fit','r-fit','Compute the harmless mean','Select l*; evaluate'],
+ ['JBB-Behaviors matched pairs', '82 + 82', 'select','r-sel','Pick l*, offset and tau','Fit the direction; evaluate'],
+ ['AgentHarm', '208 / 52 behaviours', 'evaluate','r-eval','The actual experiment','Fit or select anything'],
+];
+const rt=document.getElementById('roles');
+rt.append(el('tr')); ['Dataset','N','Role','Used to','Never used to'].forEach(h=>rt.rows[0].append(el('th',null,h)));
+roles.forEach(([d,n,role,cls,use,never])=>{const r=el('tr');
+  r.append(el('td',null,d)); r.append(el('td','num mono',n));
+  r.append(el('td','role '+cls,role)); r.append(el('td',null,use)); r.append(el('td',null,never));
+  rt.append(r);});
+
+const D = DATA.dual;
+if(D){
+  const g=D.gate_b2, P=D.positions, pass=g.cos_matched_layer<=g.threshold;
+  const v=document.getElementById('b2verdict');
+  v.className='panel verdict'+(pass?' ok':'');
+  const rows=[['cos at matched layer', g.cos_matched_layer.toFixed(4)],
+    ['cos at each direction\u2019s own best layer', g.cos_at_own_best.toFixed(4)],
+    ['range across 32 layers', `${Math.min(...g.cos_per_layer).toFixed(3)} to ${Math.max(...g.cos_per_layer).toFixed(3)}`],
+    ['r_ref  (context_last)', `l*=${P.context_last.l_star} \u00b7 AUROC ${P.context_last.auroc.toFixed(4)}`],
+    ['r_harm (task_last)', `l*=${P.task_last.l_star} \u00b7 AUROC ${P.task_last.auroc.toFixed(4)}`]];
+  const h=el('h3',null,g.verdict); h.style.color=pass?'var(--ok)':'var(--fail)'; v.append(h);
+  const tb=el('table'); rows.forEach(([k,x])=>{const r=el('tr');
+    r.append(el('td',null,k)); r.append(el('td','num mono',x)); tb.append(r);}); v.append(tb);
+
+  const NS='http://www.w3.org/2000/svg';
+  const draw=(id,series,lo,hi,marks)=>{const svg=document.getElementById(id);
+    const L=series[0].v.length, X=l=>44+l*(726/(L-1)), Y=q=>222-((q-lo)/(hi-lo))*196;
+    const add=(t,a)=>{const n=document.createElementNS(NS,t); for(const k in a)n.setAttribute(k,a[k]);
+      svg.append(n); return n;};
+    marks.forEach(m=>{add('line',{x1:44,x2:770,y1:Y(m),y2:Y(m),stroke:'currentColor',
+      'stroke-opacity':.16,'stroke-dasharray':'2 3'});
+      const tx=add('text',{x:6,y:Y(m)+4,fill:'currentColor','fill-opacity':.55,'font-size':10,
+        'font-family':'IBM Plex Mono, monospace'}); tx.textContent=m.toFixed(2);});
+    series.forEach((s,i)=>{
+      add('path',{d:s.v.map((y,l)=>`${l?'L':'M'}${X(l)},${Y(y)}`).join(' '),fill:'none',
+        stroke:s.c,'stroke-width':2});
+      const k=add('text',{x:48+i*168,y:16,fill:s.c,'font-size':10.5,
+        'font-family':'IBM Plex Mono, monospace'}); k.textContent='\u2014 '+s.n;
+      if(s.star!==undefined)add('circle',{cx:X(s.star),cy:Y(s.v[s.star]),r:5,fill:'none',
+        stroke:s.c,'stroke-width':2});
+    });
+  };
+  draw('dual-auroc',[
+    {v:P.context_last.auroc_by_layer,c:'var(--accent)',n:'r_ref',star:P.context_last.l_star},
+    {v:P.task_last.auroc_by_layer,c:'var(--warn)',n:'r_harm',star:P.task_last.l_star}],0.4,1.0,[0.5,0.75,1.0]);
+  draw('dual-cos',[{v:g.cos_per_layer,c:'var(--ok)',n:'cosine'}],-0.3,1.0,[0,0.5,0.9]);
+} else { document.getElementById('dual-sec').remove(); }
 
 const et=document.getElementById('env');
 et.append(el('tr')); ['Field','Value'].forEach(h=>et.rows[0].append(el('th',null,h)));
