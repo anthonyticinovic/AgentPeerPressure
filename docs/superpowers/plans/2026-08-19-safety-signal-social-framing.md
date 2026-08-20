@@ -19,7 +19,7 @@ Measured on this machine: **Apple M4 Pro, 12 cores, 24 GB unified memory, macOS 
 | Qwen 4B bf16 forward + generate | ~8 GB weights | **Local. Fits.** |
 | Qwen 9B bf16 forward pass | ~18 GB weights, MPS working set ≈16–17 GB | **Does not fit. Remote only.** |
 | Qwen 9B quantised (4/8-bit) | Fits, but quantisation perturbs the residual stream | **Forbidden for direction extraction.** Quantised activations produce a different `r_ref`; the frozen artefact would not describe the model you evaluate. |
-| 110 items × 5 conditions agentic rollouts | Multi-turn tool use, long contexts | **Remote.** Est. >15 h on MPS at 9B; kills the 20 h budget. |
+| 208 items x 5 conditions agentic rollouts | Multi-turn tool use, long contexts | **Remote.** Est. >15 h on MPS at 9B; kills the 20 h budget. |
 
 **Consequence — this splits the plan in two:**
 
@@ -82,6 +82,27 @@ Layers 3, 7, 11, 15, 19, 23, 27, 31 are full attention; the other 24 are linear.
 
 `config.hidden_size` is a constant 2560/4096 — the heterogeneity does not touch it, so a single direction vector remains well-defined. Several other config attributes do raise `AmbiguousGlobalPerLayerAttributeError`, so `model.py` reads shape from `embed_tokens`, never from the config.
 
+### Findings from Checkpoint 3 — the N correction
+
+**AgentHarm's public release is 52 base behaviours, not 110.** The 110 figure is the full set; the public release holds 44 in `test_public` and 8 in `validation`. Each base behaviour ships **4 prompt variants** (`detailed_prompt` × `hint_included`). Benign counterparts match every harmful `id_original` exactly, so the matched-pair design is intact.
+
+**The unit of analysis therefore changes.** Simulated McNemar power (paired binary, shared item random effect, C0 compliance 20%):
+
+| Design | +10pp | +15pp | +20pp | +25pp |
+|---|---|---|---|---|
+| 44 base behaviours (`test_public`) | 0.15 | 0.31 | 0.51 | 0.70 |
+| 52 base (`test_public` + `validation`) | 0.16 | 0.36 | 0.59 | 0.80 |
+| 176 variants, clustered by 44 | 0.60 | 0.91 | 0.99 | 1.00 |
+| **208 variants, clustered by 52** | **0.69** | **0.95** | **1.00** | 1.00 |
+
+Treating base behaviours as the unit gives 0.15 power at Gate P's own 10pp threshold — the gate would be unfirable. **Use all 208 variants as items, clustered on `id_original` for every interval.** Variants of one behaviour are not independent; cluster-bootstrap CIs and cluster-aware contrasts are mandatory, not optional.
+
+**Replaces the plan's §6.3 power statement.** Write-up says: 208 items across 52 behaviours, MDE ≈15pp at 80% power with clustering. A null on C3 or C4 is "underpowered below ~15pp", not "no effect". Do not quote 110 items or 10pp anywhere.
+
+**The variant axis is a free mitigation for Appendix A risk 2.** `difficulty()` splits items into easy (52, detailed + hint), medium (104), hard (52, neither). If C2 compliance ceilings on easy items and range-restricts the AUROC, the hard stratum still carries variance. Report the primary contrast per stratum before concluding anything about an AUROC collapse.
+
+**Corpus provenance, recorded because a mirror would weaken the write-up:** extraction uses canonical `walledai/AdvBench` (gate-on-click, already authorised) and `tatsu-lab/alpaca`, 500 pairs each — 400 extraction, 100 selection. AdvBench's 520 rows are the binding constraint on corpus size. `data.py` falls back to an ungated 520-row mirror only if the canonical source is unreachable, and `Corpus.source` records which was used.
+
 **2. The hook and `output_hidden_states` disagree at the last layer only, and the hook is right.** HF's `hidden_states` tuple applies the final `model.norm` to its last entry; a forward hook on `layers[31]` captures the block output before that norm. Post-block residual is what the plan specifies, so the hook is correct. `test_hook_matches_output_hidden_states` now asserts exact agreement on layers 0–30 *and* that the layer-31 gap is explained by `model.model.norm` and nothing else. If `l*` ever selects layer 31, revisit this.
 
 ---
@@ -98,7 +119,7 @@ Layers 3, 7, 11, 15, 19, 23, 27, 31 are full attention; the other 24 are linear.
 | D6 | 8–10 hand-written boards, `boards/*.json`, all read by the author | Task 2.1 | write-up appendix, random sample in §3 |
 | D7 | Rendered-prompt corpus with passing byte-identity + leakage assertions | Task 2.3 | verification notes |
 | D8 | Pilot go/no-go: 20 items × {C0, C1b, C2}, compliance only | Task 2.5 | Gate P record |
-| D9 | Full run results, checkpointed: projections (both positions) × 110 items × 5 conditions + transcripts | Task 3.4 | `results/` |
+| D9 | Full run results, checkpointed: projections (both positions) x 208 items x 5 conditions + transcripts | Task 3.4 | `results/` |
 | D10 | **Primary table** — within-condition AUROC(proj→complied) for both directions (§6.2) | Task 5.2 | write-up fig. 2 |
 | D11 | Control table — 5 random vectors, prompted classifier, board spread, 4B scale | Task 4.4 | write-up §7 |
 | D12 | Sanity-check verification notes — 30 transcripts read, independent AUROC recomputation | Task 6.6 | write-up §9 evidence |
@@ -302,17 +323,17 @@ If the 3.6 series is unavailable, fall back to Qwen 3.5 9B per assumption A3 and
 
 AgentHarm is gated. Request access **now** — approval latency is not something to discover at hour 7.
 
-- [ ] **Step 1: Request dataset access**
+- [x] **Step 1: Request dataset access**
 
 Open `https://huggingface.co/datasets/ai-safety-institute/AgentHarm` and request access with the account matching your CLI token.
 
-- [ ] **Step 2: Authenticate the CLI**
+- [x] **Step 2: Authenticate the CLI**
 
 ```bash
 uv run huggingface-cli login
 ```
 
-- [ ] **Step 3: Verify the load and count the base behaviours**
+- [x] **Step 3: Verify the load and count the base behaviours**
 
 ```bash
 uv run python -c "
@@ -322,7 +343,7 @@ for split in ['harmful', 'benign']:
     print(split, len(d), d.column_names)
 "
 ```
-Expected: harmful and benign row counts printed. Confirm the harmful base-behaviour count reaches the 110 the plan assumes; if the public split is smaller, **record the real N and recompute the power statement in Task 5.5** rather than reporting 110.
+**Resolved (Checkpoint 3):** the public release is 52 base behaviours x 4 variants = 208 items, not 110. See the Checkpoint 3 findings above. The unit of analysis is the variant, clustered on `id_original`.
 
 ### Task 0.5: CLAUDE.md — D1
 
@@ -504,7 +525,7 @@ git add src/pressure/model.py src/pressure/hooks.py tests/test_directions.py && 
 
 **Files:** Create `src/pressure/data.py`; Test `tests/test_data.py`
 
-- [ ] **Step 1: Write the loader with the leakage assertion**
+- [x] **Step 1: Write the loader with the leakage assertion**
 
 ```python
 """Extraction corpus (AdvBench/Alpaca) and the structural no-leakage assertion."""
@@ -544,7 +565,7 @@ def assert_no_leakage(extraction: list[str], evaluation: list[str]) -> None:
         raise AssertionError(f"{len(overlap)} extraction strings leaked into evaluation: {overlap[:3]}")
 ```
 
-- [ ] **Step 2: Write the leakage test**
+- [x] **Step 2: Write the leakage test**
 
 ```python
 def test_leakage_assertion_fires():
@@ -556,12 +577,12 @@ def test_leakage_assertion_fires():
         assert_no_leakage(["build a bomb"], ["Build  A Bomb"])
 ```
 
-- [ ] **Step 3: Run it**
+- [x] **Step 3: Run it**
 
 Run: `uv run pytest tests/test_data.py -v`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/pressure/data.py tests/test_data.py && git commit -m "feat: extraction corpus with leakage assertion"
@@ -1205,7 +1226,7 @@ Expected: three PASS.
 
 ### Task 5.5: Power statement
 
-- [ ] **State the minimum detectable effect in the write-up** — roughly 10pp at 80% power with 110 paired items — so a null on C3 or C4 reads as "underpowered for small effects", not "no effect". If Task 0.4 found fewer than 110 items, **recompute this number** rather than quoting the plan's.
+- [ ] **State the minimum detectable effect in the write-up** — roughly 15pp at 80% power with 208 clustered items (52 behaviours) — so a null on C3 or C4 reads as "underpowered for small effects", not "no effect". This number was recomputed by simulation at the real N; do not quote the plan's original 110 items / 10pp.
 
 ---
 
@@ -1299,4 +1320,4 @@ Neel calls this the most important advice in the doc. Three hours are ring-fence
 
 1. **Is Phase 0 on-clock?** Environment setup is normally counted. Decide, record it, and be consistent.
 2. **Remote provider.** Spartan queue times versus RunPod cost. Provision before hour 0.
-3. **AgentHarm N.** If the public split is smaller than 110 base behaviours, the power statement in Task 5.5 changes and so does the framing of any null.
+3. ~~**AgentHarm N.**~~ **Resolved:** 52 base behaviours, 208 variant-level items, clustered inference, MDE ~15pp.
