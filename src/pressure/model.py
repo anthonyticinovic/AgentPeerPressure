@@ -61,4 +61,14 @@ def n_layers(model) -> int:
 
 
 def hidden_size(model) -> int:
+    """Read from the embedding, not the config. Qwen3.5 is a heterogeneous model and
+    several config attributes raise AmbiguousGlobalPerLayerAttributeError."""
     return model.model.embed_tokens.embedding_dim
+
+
+def layer_types(model) -> list[str]:
+    """Per-layer attention type. Qwen3.5 interleaves 'lllF' — every fourth layer is
+    full attention, the rest linear. The sweep reports l*'s type alongside its index,
+    because a direction living on a full-attention layer is a different claim from one
+    living on a linear-attention layer."""
+    return list(model.config.get_text_config().layer_types)

@@ -62,6 +62,28 @@ Both have **32 layers**, so `l*` is directly comparable across the scale check �
 
 **Environment:** Python 3.12.13, torch 2.13.0 (MPS available), transformers 5.15.1, inspect-ai, pytest 9.1.1, managed by `uv`.
 
+**transformers 5.x is forced.** `Qwen3_5ForCausalLM` is a new architecture class; v4 cannot load these weights. Downgrading to a familiar version is not an option, so the API is verified by test rather than assumed. In v5 a Qwen3.5 decoder layer's `forward` returns a **plain tensor**, where v4 returned a tuple — `hooks._hidden()` handles both.
+
+### Findings from Checkpoint 2
+
+**1. Qwen3.5 is a hybrid-attention model, and both sizes share one pattern.**
+
+```
+4B: lllFlllFlllFlllFlllFlllFlllFlllF   (F = full attention, l = linear)
+9B: lllFlllFlllFlllFlllFlllFlllFlllF   identical
+```
+
+Layers 3, 7, 11, 15, 19, 23, 27, 31 are full attention; the other 24 are linear. Consequences:
+
+- The layer sweep may come out **jagged rather than smooth**. That is the architecture, not a bug — do not smooth it away or treat a sawtooth profile as noise.
+- `l*` must be reported **with its layer type**. A direction living on a full-attention layer is a different claim from one living on a linear-attention layer, and it is a free observation worth a sentence in the write-up.
+- Because the pattern is identical across sizes, the §6.4 scale comparison of `l*` is structurally meaningful, not coincidental. Hidden sizes differ (2560 vs 4096), so only the layer *index* transfers, never the vector.
+- Ablation over "all layers ≥ `l*`" (Task 1.6) necessarily spans both layer types. Record that.
+
+`config.hidden_size` is a constant 2560/4096 — the heterogeneity does not touch it, so a single direction vector remains well-defined. Several other config attributes do raise `AmbiguousGlobalPerLayerAttributeError`, so `model.py` reads shape from `embed_tokens`, never from the config.
+
+**2. The hook and `output_hidden_states` disagree at the last layer only, and the hook is right.** HF's `hidden_states` tuple applies the final `model.norm` to its last entry; a forward hook on `layers[31]` captures the block output before that norm. Post-block residual is what the plan specifies, so the hook is correct. `test_hook_matches_output_hidden_states` now asserts exact agreement on layers 0–30 *and* that the layer-31 gap is explained by `model.model.norm` and nothing else. If `l*` ever selects layer 31, revisit this.
+
 ---
 
 ## 1. Key deliverables
@@ -378,7 +400,7 @@ Expected: layer count and `torch.bfloat16`.
 
 **Files:** Create `src/pressure/model.py`, `src/pressure/hooks.py`; Test `tests/test_directions.py`
 
-- [ ] **Step 1: Write the loader**
+- [x] **Step 1: Write the loader**
 
 ```python
 """Model handle. Loaded once per process — see CLAUDE.md."""
@@ -404,7 +426,7 @@ def chat_prompt(tok, user_text: str, system: str | None = None) -> str:
     return tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
 ```
 
-- [ ] **Step 2: Write the hook module**
+- [x] **Step 2: Write the hook module**
 
 ```python
 """Residual-stream capture via raw HF forward hooks. Post-block, all layers."""
@@ -454,7 +476,7 @@ def residuals_at(model, tok, prompt: str, offsets: tuple[int, ...] = (-1,)) -> t
     ])
 ```
 
-- [ ] **Step 3: Write the shape test**
+- [x] **Step 3: Write the shape test**
 
 ```python
 def test_residuals_shape():
@@ -467,12 +489,12 @@ def test_residuals_shape():
     assert acts.isfinite().all()
 ```
 
-- [ ] **Step 4: Run it on the 4B locally**
+- [x] **Step 4: Run it on the 4B locally**
 
 Run: `uv run pytest tests/test_directions.py::test_residuals_shape -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/pressure/model.py src/pressure/hooks.py tests/test_directions.py && git commit -m "feat: residual stream capture via forward hooks"
