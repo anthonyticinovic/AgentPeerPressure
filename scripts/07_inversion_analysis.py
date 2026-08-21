@@ -145,47 +145,52 @@ def main() -> None:
     out["clean_window"] = window
     print(f"\nr_harm directional (both signs move oppositely) at layers: {window}", flush=True)
 
-    # ---- headline: at each direction's own best layer inside the clean window ----
+    # ---- headline ---------------------------------------------------------------
+    # The question is not "did the answer change" -- every arm changes something.
+    # It is whether the direction moves the JUDGEMENT the way its own label predicts.
+    # Each direction is harmful-minus-harmless, so pushed +, it should RAISE
+    # P(judged harmful); pushed -, it should LOWER it. A direction that raises the
+    # harmful verdict only when pushed toward "less harmful" is moving the answer
+    # token, not the belief.
     def at(key, lay):
         return next(r for r in out["arms"][key]["series"] if r["layer"] == lay)
 
-    best_harm = max([l for l in window],
-                    key=lambda l: at("harmless/r_harm+", l)["p_harmful"])
-    head = {
-        "r_harm": {
-            "layer": best_harm,
-            "benign_judged_harmful": at("harmless/r_harm+", best_harm)["p_harmful"],
-            "harmful_judged_harmless": 1 - at("harmful/r_harm-", best_harm)["p_harmful"],
-            "refusal": max(at("harmless/r_harm+", best_harm)["refused"],
-                           at("harmful/r_harm-", best_harm)["refused"]),
-        },
-    }
-    for name, hl_key, hf_key in (("r_ref", "harmless/r_ref+", "harmful/r_ref+"),
-                                 ("r_arditi", "harmless/r_arditi+", "harmful/r_arditi-")):
-        # best layer = where it most changes the harmful panel
-        lay = min(range(1, sweep["n_layers"]),
-                  key=lambda l: at(hf_key, l)["p_harmful"] + at(hf_key, l)["refused"])
+    def peak(key, field="p_harmful", lo=2):
+        rows = [r for r in out["arms"][key]["series"] if r["layer"] >= lo]
+        return max(rows, key=lambda r: r[field])
+
+    head = {}
+    for name, plus, minus in (("r_harm", "harmless/r_harm+", "harmless/r_harm-"),
+                              ("r_ref", "harmless/r_ref+", "harmless/r_ref-"),
+                              ("r_arditi", "harmless/r_arditi+", None)):
+        pp = peak(plus)
+        mm = peak(minus) if minus else None
         head[name] = {
-            "layer": lay,
-            "benign_judged_harmful": at(hl_key, lay)["p_harmful"],
-            "harmful_judged_harmless": 1 - at(hf_key, lay)["p_harmful"],
-            "refusal": max(at(hl_key, lay)["refused"], at(hf_key, lay)["refused"]),
-            "peak_refusal": max(max(r["refused"] for r in out["arms"][hl_key]["series"]),
-                                max(r["refused"] for r in out["arms"][hf_key]["series"])),
+            "plus_layer": pp["layer"],
+            "plus_benign_judged_harmful": pp["p_harmful"],
+            "minus_benign_judged_harmful": mm["p_harmful"] if mm else None,
+            "minus_layer": mm["layer"] if mm else None,
+            "peak_refusal": max(
+                max(r["refused"] for r in out["arms"][plus]["series"]),
+                max(r["refused"] for r in out["arms"][minus]["series"]) if minus else 0.0),
+            # label-consistent = the + push (meaning "more harmful") raises the harmful
+            # verdict, and the - push does not raise it more than the + push does.
+            "label_consistent": bool(
+                pp["p_harmful"] >= 0.3
+                and (mm is None or mm["p_harmful"] < pp["p_harmful"])),
         }
-    head["r_harm"]["peak_refusal"] = max(
-        max(r["refused"] for r in out["arms"]["harmless/r_harm+"]["series"]),
-        max(r["refused"] for r in out["arms"]["harmful/r_harm-"]["series"]))
     out["headline"] = head
-    print("\nheadline — can the direction make BENIGN prompts be judged harmful?", flush=True)
-    print(f"{'direction':>10} {'layer':>6} {'benign->harmful':>16} "
-          f"{'harmful->harmless':>18} {'peak refusal':>13}", flush=True)
-    print(f"{'baseline':>10} {'—':>6} {0.0:>16.2f} {0.04:>18.2f} {0.0:>13.2f}", flush=True)
+
+    print("\nheadline - does the direction move the judgement the way its LABEL predicts?")
+    print("(benign prompts, baseline P(judged harmful) = 0.00)\n")
+    print(f"{'direction':>10} {'+push (more harmful)':>21} {'-push (less harmful)':>21} "
+          f"{'peak refusal':>13} {'consistent':>11}")
     for k, v in head.items():
-        print(f"{k:>10} {v['layer']:>6} {v['benign_judged_harmful']:>16.2f} "
-              f"{v['harmful_judged_harmless']:>18.2f} {v['peak_refusal']:>13.2f}", flush=True)
-    out["verdict"] = {"r_harm_consistent": bool(harm_ok),
-                      "r_ref_consistent": bool(ref_ok)}
+        mp = ("%.2f @L%d" % (v['minus_benign_judged_harmful'], v['minus_layer'])
+              if v['minus_benign_judged_harmful'] is not None else "n/a")
+        print(f"{k:>10} {'%.2f @L%d' % (v['plus_benign_judged_harmful'], v['plus_layer']):>21} "
+              f"{mp:>21} {v['peak_refusal']:>13.2f} "
+              f"{'YES' if v['label_consistent'] else 'no':>11}")
 
     # ---- sample for hand review ------------------------------------------------
     rng = random.Random(CFG.seed)
