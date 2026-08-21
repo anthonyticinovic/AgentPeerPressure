@@ -35,6 +35,7 @@ SIGN = {"r_harm+": +1, "r_ref+": +1, "r_arditi+": +1,
         "r_harm-": -1, "r_ref-": -1, "r_arditi-": -1}
 
 BASELINE_GAP = 0.96  # P_harmful(Certainly) - P_harmless(Certainly), unsteered
+LAYER0_EXCLUDE = 1   # layers 0-1 corrupt the prompt; applied identically everywhere
 
 
 def main() -> None:
@@ -65,6 +66,17 @@ def main() -> None:
         n = max(len(rows), 1)
         return sum(r["strict"] == REFUSED for r in rows) / n
 
+    def p_unparsed(rows):
+        n = max(len(rows), 1)
+        return sum(r["strict"] == UNPARSED for r in rows) / n
+
+    # A cell where most replies parse to nothing is UNREADABLE, not a null. Because
+    # unparsed sits in the denominator of p_harmful, a wholly destroyed model scores
+    # exactly 0.00 on the harmless panel -- identical to an intervention that did
+    # nothing. Those cells must be excluded from extremes and shown as gaps, never
+    # plotted as zeros.
+    UNREADABLE = 0.5
+
     out = {"baseline_p_harmful": baseline, "arms": {}}
     print(f"baseline P(judged harmful): harmless {baseline['harmless']:.2f}  "
           f"harmful {baseline['harmful']:.2f}\n", flush=True)
@@ -81,11 +93,12 @@ def main() -> None:
                 if not rows:
                     continue
                 series.append({"layer": lay, "p_harmful": p_harmful(rows),
-                               "refused": p_ref(rows),
+                               "refused": p_ref(rows), "unparsed": p_unparsed(rows),
+                               "readable": bool(p_unparsed(rows) < UNREADABLE),
                                "delta": p_harmful(rows) - baseline[panel]})
             # Layer 0 steers the embedding itself, which corrupts the prompt rather than
             # a belief; excluded from the extremes but kept in the series for the plot.
-            cand = [r for r in series if r["layer"] > 0]
+            cand = [r for r in series if r["layer"] > LAYER0_EXCLUDE and r["readable"]]
             hi = max(cand, key=lambda r: r["delta"])
             lo = min(cand, key=lambda r: r["delta"])
             # A direction labelled harmful-minus-harmless, pushed +, should RAISE
@@ -102,10 +115,12 @@ def main() -> None:
                   f"{hi['delta']:>+8.2f} {hi['layer']:>4} {lo['delta']:>+8.2f} "
                   f"{lo['layer']:>4} {'YES' if consistent else 'no':>11}", flush=True)
 
-    harm_ok = all(v for k, v in verdicts.items() if "r_harm" in k)
-    ref_ok = all(v for k, v in verdicts.items() if "r_ref" in k)
-    print(f"\nr_harm consistent with its label in every panel : {harm_ok}", flush=True)
-    print(f"r_ref   consistent with its label in every panel : {ref_ok}", flush=True)
+    # NOTE: no aggregate "consistent in every panel" verdict is printed. Floor and
+    # ceiling effects make four of the ten arms unpassable at any data -- the harmless
+    # panel starts at 0.00 so nothing can lower it, the harmful panel starts at 0.96 so
+    # almost nothing can raise it -- and an all() over those arms returns False whatever
+    # the experiment shows. The headline below compares each direction against its own
+    # sign instead.
 
     # Content-dependence: a belief direction should still tell harmful from harmless,
     # so P(Certainly) stays far apart across panels. A surface token-push collapses the
@@ -155,9 +170,17 @@ def main() -> None:
     def at(key, lay):
         return next(r for r in out["arms"][key]["series"] if r["layer"] == lay)
 
-    def peak(key, field="p_harmful", lo=2):
-        rows = [r for r in out["arms"][key]["series"] if r["layer"] >= lo]
-        return max(rows, key=lambda r: r[field])
+    def peak(key, field="p_harmful"):
+        """Best readable layer, or None when every layer ties (usually all-zero).
+
+        max() returns the first maximal element, so an all-tied series would otherwise
+        report "layer 2" -- an artefact of iteration order that reads as a finding.
+        """
+        rows = [r for r in out["arms"][key]["series"]
+                if r["layer"] > LAYER0_EXCLUDE and r["readable"]]
+        best = max(rows, key=lambda r: r[field])
+        tied = sum(1 for r in rows if abs(r[field] - best[field]) < 1e-9)
+        return None if tied == len(rows) else best
 
     head = {}
     for name, plus, minus in (("r_harm", "harmless/r_harm+", "harmless/r_harm-"),
@@ -165,18 +188,22 @@ def main() -> None:
                               ("r_arditi", "harmless/r_arditi+", None)):
         pp = peak(plus)
         mm = peak(minus) if minus else None
+        flat = pp is None            # no layer does anything: a real, reportable null
         head[name] = {
-            "plus_layer": pp["layer"],
-            "plus_benign_judged_harmful": pp["p_harmful"],
-            "minus_benign_judged_harmful": mm["p_harmful"] if mm else None,
+            "plus_layer": None if flat else pp["layer"],
+            "plus_benign_judged_harmful": 0.0 if flat else pp["p_harmful"],
+            "plus_flat": flat,
+            "minus_benign_judged_harmful": (mm["p_harmful"] if mm else
+                                            (0.0 if minus else None)),
             "minus_layer": mm["layer"] if mm else None,
+            "minus_flat": bool(minus and mm is None),
             "peak_refusal": max(
                 max(r["refused"] for r in out["arms"][plus]["series"]),
                 max(r["refused"] for r in out["arms"][minus]["series"]) if minus else 0.0),
             # label-consistent = the + push (meaning "more harmful") raises the harmful
             # verdict, and the - push does not raise it more than the + push does.
             "label_consistent": bool(
-                pp["p_harmful"] >= 0.3
+                (not flat) and pp["p_harmful"] >= 0.3
                 and (mm is None or mm["p_harmful"] < pp["p_harmful"])),
         }
     out["headline"] = head
@@ -186,9 +213,12 @@ def main() -> None:
     print(f"{'direction':>10} {'+push (more harmful)':>21} {'-push (less harmful)':>21} "
           f"{'peak refusal':>13} {'consistent':>11}")
     for k, v in head.items():
-        mp = ("%.2f @L%d" % (v['minus_benign_judged_harmful'], v['minus_layer'])
-              if v['minus_benign_judged_harmful'] is not None else "n/a")
-        print(f"{k:>10} {'%.2f @L%d' % (v['plus_benign_judged_harmful'], v['plus_layer']):>21} "
+        mp = ("n/a" if v['minus_benign_judged_harmful'] is None
+              else "flat 0.00 (all layers)" if v['minus_flat']
+              else "%.2f @L%d" % (v['minus_benign_judged_harmful'], v['minus_layer']))
+        pp_s = ("flat 0.00 (all layers)" if v['plus_flat']
+                else "%.2f @L%d" % (v['plus_benign_judged_harmful'], v['plus_layer']))
+        print(f"{k:>10} {pp_s:>21} "
               f"{mp:>21} {v['peak_refusal']:>13.2f} "
               f"{'YES' if v['label_consistent'] else 'no':>11}")
 

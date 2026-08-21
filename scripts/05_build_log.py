@@ -187,12 +187,10 @@ pre{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:var(--tint
 <header>
   <div class="lbl">MATS 12.0 · working write-up · local 4B pipeline</div>
   <h1>Which safety signal survives social framing</h1>
-  <p class="lede">A refusal is two things at once: an internal <em>signal</em> that a request is
-  harmful, and the refusal <em>behaviour</em> that follows. If a monitor watches the signal, the
-  project asks whether peer-endorsement framing can pull the behaviour away from the signal — so a
-  harmful action goes through while the model's own harmfulness belief is unchanged, and the monitor
-  never fires. This page is the running write-up: the framing, the method, what is established, and
-  the corrections that shaped it.</p>
+  <p class="lede">The working record for this project: every method decision, parameter, dead end
+  and retraction, in the order it happened. It is deliberately unpolished and complete — the
+  narrative version lives in the <a href="https://claude.ai/code/artifact/f37f59f0-eaab-44f8-a298-385f7cf2327f">write-up</a>,
+  which carries the findings without the implementation history.</p>
   <div class="chips" id="chips"></div>
 </header>
 
