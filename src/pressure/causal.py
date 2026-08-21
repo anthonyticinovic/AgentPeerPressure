@@ -96,6 +96,95 @@ def steer(model, direction: torch.Tensor, layer: int, coeff: float, span: slice 
         handle.remove()
 
 
+@contextmanager
+def ablate_all_components(model, direction: torch.Tensor):
+    """Arditi's full directional ablation: every component that WRITES to the residual
+    stream, not just the block outputs.
+
+    Writers are the embedding, and each layer's attention and MLP. Ablating only block
+    outputs zeroes the direction at block boundaries but still lets an MLP read a stream
+    that its own attention wrote the direction into, so this is strictly stronger.
+
+    Qwen3.5 is hybrid: full-attention layers expose `self_attn`, linear-attention layers
+    expose `linear_attn`. Both are handled.
+    """
+    v = direction.to(model.device, dtype=next(model.parameters()).dtype)
+    v = v / v.norm()
+    handles = []
+
+    def hook(_m, _i, output):
+        h = _hidden(output)
+        h = h - (h @ v).unsqueeze(-1) * v
+        return (h, *output[1:]) if isinstance(output, tuple) else h
+
+    handles.append(model.model.embed_tokens.register_forward_hook(hook))
+    for block in blocks(model):
+        for name in ("self_attn", "linear_attn", "mlp"):
+            mod = getattr(block, name, None)
+            if mod is not None:
+                handles.append(mod.register_forward_hook(hook))
+    try:
+        yield
+    finally:
+        for h in handles:
+            h.remove()
+
+
+@contextmanager
+def steer_layerwise(
+    model,
+    directions: torch.Tensor,
+    layers,
+    coeff: float,
+    span: slice | None = None,
+    scale: torch.Tensor | None = None,
+):
+    """Zhao's protocol: at layer i, add that layer's OWN direction.
+
+        vector = intervention_vector[intervene_layer, :]     # intervention.py
+
+    `directions` is (n_layers, hidden). Injecting one layer's vector into every layer —
+    which an earlier version of this code did — pushes an off-manifold direction into
+    31 of 32 layers and produces generic perturbation damage indistinguishable from a
+    random vector. That is a different experiment, not a weaker version of this one.
+
+    Applied as a forward *pre*-hook on the block input, matching their `add_hooks`
+    call, rather than a post-hook on the output.
+
+    `scale` is a per-layer magnitude, normally the raw diff-of-means norm. Zhao steer
+    with unnormalised vectors whose norm grows with depth (2.1 to 39.0 on this model),
+    so unit-normalising and applying one constant coefficient makes the intervention
+    ~24x stronger at layer 0 than at layer 31. Pass `scale` to preserve their scaling.
+    """
+    dtype = next(model.parameters()).dtype
+    handles = []
+
+    def make(layer: int):
+        v = directions[layer].to(model.device, dtype=dtype)
+        v = v / v.norm()
+        if scale is not None:
+            v = v * scale[layer].to(v)
+
+        def pre_hook(_module, inputs):
+            act = inputs[0] if isinstance(inputs, tuple) else inputs
+            act = act.clone()
+            if span is None:
+                act = act + coeff * v
+            else:
+                act[:, span, :] = act[:, span, :] + coeff * v
+            return (act, *inputs[1:]) if isinstance(inputs, tuple) else act
+
+        return pre_hook
+
+    for i in layers:
+        handles.append(blocks(model)[i].register_forward_pre_hook(make(i)))
+    try:
+        yield
+    finally:
+        for h in handles:
+            h.remove()
+
+
 @torch.no_grad()
 def generate(model, tok, prompt: str, max_new_tokens: int = 40) -> str:
     enc = tok(prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
@@ -125,11 +214,46 @@ def judgement_logit_gap(model, tok, prompt: str, yes: str, no: str) -> float:
 
 
 def random_directions(hidden: int, n: int | None = None, seed: int = 0) -> list[torch.Tensor]:
-    """Matched-norm random unit vectors — the null every threshold is read against."""
+    """Isotropic random unit vectors.
+
+    WEAK CONTROL — read the warning before using it as a null. In `hidden` dimensions a
+    random direction captures ~1/hidden of the activation variance, so ablating one
+    removes almost nothing and it cannot move any behavioural measure. "Beats random"
+    is therefore close to vacuous. Use `shuffled_label_direction` or `top_pc_direction`
+    as the real null; this is kept only for continuity with the plan's §6.4 control.
+    """
     n = n if n is not None else CFG.n_random_controls
     g = torch.Generator().manual_seed(seed)
+    return [(lambda v: v / v.norm())(torch.randn(hidden, generator=g)) for _ in range(n)]
+
+
+def shuffled_label_direction(acts_a: torch.Tensor, acts_b: torch.Tensor, seed: int = 0):
+    """Diff-of-means with the class labels randomly permuted.
+
+    The correct null for a diff-of-means direction: identical construction, identical
+    data, identical norm scale — only the labels are meaningless. Anything a real
+    direction does over and above this is attributable to the labels rather than to
+    the procedure or to the geometry of the activations.
+
+    `acts_a`, `acts_b` are (n_prompts, n_layers, hidden). Returns (n_layers, hidden).
+    """
+    g = torch.Generator().manual_seed(seed)
+    pooled = torch.cat([acts_a, acts_b], dim=0)
+    idx = torch.randperm(len(pooled), generator=g)
+    half = len(acts_a)
+    d = pooled[idx[:half]].mean(0) - pooled[idx[half:]].mean(0)
+    return d
+
+
+def top_pc_direction(acts: torch.Tensor):
+    """First principal component per layer — a high-variance direction that is not
+    harmfulness. Ablating it removes far more of the representation than a random
+    direction does, so it bounds how much of any effect is "removed a lot of variance"
+    rather than "removed the right thing". Returns (n_layers, hidden)."""
     out = []
-    for _ in range(n):
-        v = torch.randn(hidden, generator=g)
-        out.append(v / v.norm())
-    return out
+    for l in range(acts.shape[1]):
+        x = acts[:, l, :]
+        x = x - x.mean(0, keepdim=True)
+        _u, _s, v = torch.linalg.svd(x.double(), full_matrices=False)
+        out.append(v[0].float())
+    return torch.stack(out)
