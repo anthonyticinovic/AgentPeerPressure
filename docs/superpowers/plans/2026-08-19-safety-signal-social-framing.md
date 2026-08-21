@@ -139,6 +139,26 @@ Treating base behaviours as the unit gives 0.15 power at Gate P's own 10pp thres
 
 ---
 
+### Findings from Checkpoint 5 — Gate B passes, once Arditi's selection is run properly
+
+**Gate B is met on Qwen3.5-4B: a diff-of-means direction, ablated, collapses refusal.** Held-out harmful prompts go from refusal 1.00 → 0.04, with genuine harmful compliance ~0.84 by hand-check over all 25 completions (`results/HANDLABEL_arditi_selected.json`). The shuffled-label null at the same (position, layer) stays at 1.00 / 0.00, so the effect is the labels, not the geometry.
+
+**This reverses the earlier "ablation does not work" conclusion, which was a selection artefact.** Three faults, all in the now-archived `scripts/archive/arditi_sweep_layers_only.py`:
+
+1. **Wrong candidate set.** Arditi's candidates are a grid over *post-instruction token position × layer* (§2.3, Table 5 shows i* = −5 for LLAMA-3 8B and YI 6B, not −1). `08` swept layers at position −1 only — 32 of 288 candidates. The winner is **i* = −7, l* = 12**, invisible to a position-−1 sweep.
+2. **Wrong score.** Selection uses the refusal metric — log-odds that the first token is in R (§B) — not judge-graded generation. One forward pass per candidate; that is what makes 288 candidates affordable.
+3. **No filters.** Selection is *minimum bypass_score subject to* induce > 0, kl < 0.1, l < 0.8L (§C.1). The old AUROC pick (pos −1, layer 22) has **kl = 0.45** → inadmissible: ablating it wrecks harmless behaviour. The kl and l < 0.8L filters exist precisely to reject the E6 "layer-31 collapse" class of false success.
+
+Faithful implementation in `src/pressure/arditi.py` (grid, refusal metric, three filters, `ablate_all_components` per eq. 4, `add_activation` per eq. 3) and `scripts/03_arditi_selection.py`. Behavioural confirmation at 256 tokens in `scripts/04_arditi_generation_check.py`. R derived empirically (token 40 = "I", harmful p=0.99 vs harmless 0.004), matching the paper's QWEN row.
+
+**Measurement caveat, third instance of the same failure mode.** The automated harmful-content judge under-called at 0.20 because it reads only the framing-heavy opening; the true rate by hand is 0.84. As with the substring detector and the earlier judge, a token/prefix proxy for compliance mis-graded — the number that stands is the hand-check, not the judge.
+
+**RDO retraction.** `scripts/archive/rdo_lite.py` is *not* an implementation of Wollschläger et al. (2502.17420); it was a self-invented reduction ("RDO-lite") optimising −log P("Sure, here") under ablation — a prefix proxy, the same failure class. It is archived and should not be cited: the legitimate diff-of-means direction ablates refusal, so no gradient-optimised direction is needed to pass Gate B.
+
+**Consequence for the thesis.** r_ref is now a validated *mediator* of refusal, not merely a correlate — the monitoring story is alive. The next question (Gate B2 / the harm-vs-refusal split) is unchanged: whether r_harm at t_inst tracks the harmfulness *belief* while r_ref tracks the refusal *behaviour*.
+
+---
+
 ## 1. Key deliverables
 
 | # | Deliverable | Produced by | Ends up in |

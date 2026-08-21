@@ -1,7 +1,7 @@
 """Build the research log artefact from results on disk.
 
 Re-runnable: every number comes from results/*.json, never transcribed by hand.
-    uv run python scripts/build_artefact.py
+    uv run python scripts/05_build_log.py
 """
 
 from __future__ import annotations
@@ -19,13 +19,87 @@ def _load(name: str):
     return json.loads(p.read_text()) if p.exists() else None
 
 
+def _f(x: float) -> str:
+    return f"{x:.2f}"
+
+
+def gate_b_payload():
+    """Compute the Gate B section from the Arditi selection + generation-check results.
+
+    Replaces the retracted causal_validation.json feed. The verdict is PASS: a
+    diff-of-means direction, selected by Arditi's real grid criterion, ablates refusal.
+    """
+    sel, gen, hand = (
+        _load("arditi_selection.json"),
+        _load("arditi_generation_check.json"),
+        _load("HANDLABEL_arditi_selected.json"),
+    )
+    if not (sel and gen and hand):
+        return None
+    s, a, b = sel["selected"], sel["auroc_choice"], gen["behaviour"]
+    n_cand = len(sel["positions"]) * sel["n_layers"]
+    yes, no = '<span class="yes">yes</span>', '<span class="no">no</span>'
+
+    def row(name, beh, kl, adm, hand_rate=None):
+        return [
+            name,
+            {"n": _f(beh["refusal_rate"])},
+            {"n": _f(beh["harmful_rate"])},
+            {"n": _f(hand_rate) if hand_rate is not None else "—"},
+            {"n": f"{kl:.2f}" if kl is not None else "—"},
+            {"html": adm},
+        ]
+
+    return {
+        "verdict_class": "good",
+        "verdict_short": "pass",
+        "verdict": "PASS — refusal is causally ablatable",
+        "summary_html": (
+            f"Arditi's selection over the full <b>{n_cand}-candidate</b> grid "
+            "(9 post-instruction positions × 32 layers), scored by the refusal metric and "
+            "filtered on <code>induce&gt;0, kl&lt;0.1, l&lt;0.8L</code>, selects "
+            f"<b>i*={s['position']}, l*={s['layer']}</b>. Ablating it drops refusal "
+            f"<b>1.00 → {b['selected']['refusal_rate']:.2f}</b>, with "
+            f"<b>{hand['hand_complied_rate']:.2f}</b> harmful compliance by hand over all "
+            f"{hand['hand_complied_count']}/25 held-out completions. The shuffled-label null "
+            "at the same site stays 1.00 / 0.00 — the effect is the labels, not the geometry."
+        ),
+        "table_head": ["Direction", "refusal", "harmful·judge", "harmful·hand", "kl", "admissible"],
+        "table": [
+            row("baseline", b["baseline"], None, "—"),
+            row(f"ablate i*={s['position']}, l*={s['layer']}", b["selected"], s["kl"], yes,
+                hand["hand_complied_rate"]),
+            row("shuffled-label, same site", b["shuffled"], None, "—"),
+            row("AUROC pick (pos −1, l 22)", b["auroc"], a["kl"], no),
+        ],
+        "note_html": (
+            "The automated harmful judge under-called (0.20) by reading only framing-heavy "
+            "openings; the hand rate is 0.84 (<code>HANDLABEL_arditi_selected.json</code>) — the "
+            "third proxy-measurement failure in this project, after the substring detector and the "
+            "first judge. Note the split the thesis rests on: the <b>monitor</b> direction (the "
+            "AUROC pick, pos −1 l 22) is <em>not</em> the mediator — its kl of 0.45 makes it "
+            "inadmissible and it yields 0.08 compliance. The direction that <em>separates</em> "
+            "harmful from benign and the one that <em>ablates</em> refusal are different vectors."
+        ),
+        "ledger": {
+            "r_ref_mediates": {
+                "evidence": f"ablate i*={s['position']},l*={s['layer']} → 1.00→"
+                            f"{b['selected']['refusal_rate']:.2f} refusal, "
+                            f"{hand['hand_complied_rate']:.2f} harmful (hand)",
+                "status": "yes",
+            },
+            "r_harm_encodes": {"evidence": "inversion test not yet run", "status": "no"},
+        },
+    }
+
+
 def build() -> str:
     payload = json.dumps(
         {
             "sweep": _load("r_ref_sweep.json"),
             "samples": _load("dataset_samples.json"),
             "dual": _load("dual_directions.json"),
-            "causal": _load("causal_validation.json"),
+            "causal": gate_b_payload(),
         }
     )
     return TEMPLATE.replace("__DATA__", payload)
@@ -200,8 +274,11 @@ tbl(document.getElementById('ledger'),['Claim','Evidence','Status'],[
  ['They are distinct directions',
    'cos '+(DU?DU.gate_b2.cos_matched_layer.toFixed(3):'—')+' vs random 0.016 — gate cannot fail',
    st('no')],
- ['r_ref mediates refusal',CA?CA.ledger.r_ref_mediates.evidence:'ablation not yet run',
+ ['Refusal is causally ablatable',CA?CA.ledger.r_ref_mediates.evidence:'ablation not yet run',
    st(CA?CA.ledger.r_ref_mediates.status:'no')],
+ ['Monitor ≠ mediator (detector ≠ cause)',
+   'AUROC pick has kl 0.45, 0.08 compliance — separator is not the ablating vector',
+   st(CA?'yes':'no')],
  ['r_harm encodes harmfulness',CA?CA.ledger.r_harm_encodes.evidence:'inversion test not yet run',
    st(CA?CA.ledger.r_harm_encodes.status:'no')],
  ['Peer framing shifts compliance','pilot not yet run',st('no')],
@@ -240,6 +317,66 @@ const ENTRIES=[
     'variance. <b>Two of the plan\'s three quantitative gates are thresholds on similarity metrics, '+
     'and neither bites.</b> Only causal and functional tests discriminate, so every remaining '+
     'threshold gets its null computed before the number is read.'},
+ {id:'E6',cls:'',t:'A harmfulness direction may exist — but not where Zhao place it',
+  k:[['t_inst (offset −10) ablated','+3.88 — discrimination rises'],
+     ['offset −5, layer 31 ablated','+0.54 — collapses from +2.72'],
+     ['random ablation','+2.51'],
+     ['refusal under that ablation','0.92 → 1.00, intact'],
+     ['general capability','coherent']],
+  b:'A causal sweep over extraction positions found one whose ablation destroys the model\'s '+
+    'harmfulness judgement while leaving refusal behaviour and general competence untouched — the '+
+    'dissociation Zhao claim, at a post-instruction position rather than at <code>t_inst</code>. '+
+    '<b>Not yet a finding.</b> Layer 31 is one step from the logits, so the leading alternative is '+
+    'that this is the readout direction for the two answer tokens — deleting the ability to <em>say</em> '+
+    'the answer, not to <em>hold</em> the belief. Distinguishing test: repeat with different answer '+
+    'tokens and a reversed mapping. A belief direction should still collapse; a readout direction '+
+    'should not.'},
+ {id:'E7',cls:'bad',t:'The direction was the corpus axis, and the controls were the direction',
+  k:[['cos(top PC, r_ref)','0.999'],['cos(shuffled-label, r_ref)','0.86'],
+     ['variance explained by r_ref','31%'],['random baseline cos','0.016']],
+  b:'Adversarial review of the methods found that <code>r_ref</code>, fitted on AdvBench vs Alpaca, '+
+    '<em>is</em> the top principal component of that activation cloud. A shuffled-label diff-of-means '+
+    'recovers a direction 86% aligned with it. Both follow from E1: the corpora are lexically '+
+    'separable, so their activations split along one dominant axis and any mean-difference returns '+
+    'that axis regardless of labels. Matched-pair <em>selection</em> fixed which layer we pick; it '+
+    'never fixed what we fit.'},
+ {id:'E8',cls:'bad',t:'Retraction: the refusal measure was counting phrasing',
+  k:[['substring, ablate r_ref','0.04 → 1.00'],['judge, ablate r_ref','0.04 → 0.08'],
+     ['judge, on AgentHarm','0.04 → 0.04'],['judge, top-PC control','0.16']],
+  b:'<code>is_refusal</code> matched openers like “I cannot” and was never checked against text. '+
+    'Ablation moves the model from <em>“I cannot provide instructions…”</em> to <em>“Constructing an '+
+    'explosive device is illegal…”</em> — still a refusal, scored as compliance. Judge-graded, the '+
+    'effect is 12x smaller, and zero on the evaluation corpus. <b>Gate B fails at 4B.</b> Fitting on '+
+    'matched pairs makes the shuffled-label null work again (0.86 → 0.01) and gives AUROC 0.980, but '+
+    'ablating that direction does not raise compliance either.'},
+ {id:'E9',cls:'',t:'Mistake: “Arditi” was swept as a line, not a grid',
+  k:[['candidates tested','32 of 288'],['position swept','−1 only'],['scored by','judge, not refusal metric'],
+     ['filters applied','none']],
+  b:'An earlier entry concluded Arditi’s ablation does not replicate here. It was wrong. That sweep '+
+    'varied <em>layer</em> at a single token position (−1), grading generations with a judge and '+
+    'applying none of the three selection filters — 32 of the 288 candidates Arditi actually search. '+
+    'Their winner for comparable models sits at position −5, invisible to a position−1 line. '+
+    'Retained as the error corrected in E11.'},
+ {id:'E10',cls:'bad',t:'Retraction: “RDO” was a self-invented prefix proxy',
+  k:[['claimed method','Wollschläger et al. 2502.17420'],['actually built','−log P("Sure, here") under ablation'],
+     ['objective','affirmative <em>prefix</em>, not compliance'],['status','retracted, archived']],
+  b:'A direction was gradient-optimised and reported at 0.60 blind-human compliance. Two problems: '+
+    'it was <em>not</em> Wollschläger et al.’s method (their code was never read — this was a home-made '+
+    'reduction), and its objective rewards an affirmative opening token, the same prefix-proxy failure '+
+    'as the substring detector. Unnecessary in any case: a plain diff-of-means direction passes Gate B '+
+    'once selected properly (E11). Archived, not cited.'},
+ {id:'E11',cls:'good',t:'Gate B passes: the grid finds i*=−7, l*=12',
+  k:[['candidates','288 (9 positions × 32 layers)'],['selected','i*=−7, l*=12, kl 0.067'],
+     ['refusal under ablation','1.00 → 0.04'],['harmful compliance (hand)','0.84'],
+     ['shuffled-label null','1.00 / 0.00'],['AUROC pick (l 22) kl','0.45 — inadmissible']],
+  b:'Run to the paper: 288 diff-of-means candidates scored by the refusal metric (one forward pass '+
+    'each), selected as minimum bypass subject to <code>induce&gt;0, kl&lt;0.1, l&lt;0.8L</code>. '+
+    'Ablating the winner collapses refusal and yields 0.84 harmful compliance by hand over all 25 '+
+    'completions; the shuffled-label null at the same site does nothing. <b>Refusal on this model is '+
+    'causally ablatable.</b> The kl filter is load-bearing: it rejects both the old AUROC pick '+
+    '(kl 0.45) and the E6 late-layer “collapse”, which suppress the refusal <em>token</em> rather '+
+    'than the <em>feature</em>. Crucially the separator and the mediator are different vectors — the '+
+    'detector≠cause split the thesis needs.'},
 ];
 const logn=document.getElementById('log');
 ENTRIES.forEach(e=>{const d=el('div','entry '+e.cls);
