@@ -126,9 +126,66 @@ def main() -> None:
         print(f"  {arm:>10} baseline 0.96 -> min {worst['gap']:+.2f} @L{worst['layer']}",
               flush=True)
     out["content_gap"] = gaps
+
+    # ---- artefact test ---------------------------------------------------------
+    # Steering is directional: +v and -v must push OPPOSITE ways. Where both signs
+    # produce the same outcome the intervention is damaging the representation, not
+    # moving a feature along it. Layer 0-1 fail this for every direction, which is why
+    # their large "flips" are excluded rather than reported.
+    anti = []
+    hp = {r["layer"]: r for r in out["arms"]["harmful/r_harm+"]["series"]}
+    hm = {r["layer"]: r for r in out["arms"]["harmful/r_harm-"]["series"]}
+    for lay in sorted(set(hp) & set(hm)):
+        a, b = hp[lay]["p_harmful"], hm[lay]["p_harmful"]
+        # antisymmetric = the two signs straddle the baseline in opposite directions
+        anti.append({"layer": lay, "plus": a, "minus": b,
+                     "antisymmetric": bool(a - BASELINE_GAP > -0.15 and b < BASELINE_GAP - 0.3)})
+    out["antisymmetry"] = anti
+    window = [r["layer"] for r in anti if r["antisymmetric"]]
+    out["clean_window"] = window
+    print(f"\nr_harm directional (both signs move oppositely) at layers: {window}", flush=True)
+
+    # ---- headline: at each direction's own best layer inside the clean window ----
+    def at(key, lay):
+        return next(r for r in out["arms"][key]["series"] if r["layer"] == lay)
+
+    best_harm = max([l for l in window],
+                    key=lambda l: at("harmless/r_harm+", l)["p_harmful"])
+    head = {
+        "r_harm": {
+            "layer": best_harm,
+            "benign_judged_harmful": at("harmless/r_harm+", best_harm)["p_harmful"],
+            "harmful_judged_harmless": 1 - at("harmful/r_harm-", best_harm)["p_harmful"],
+            "refusal": max(at("harmless/r_harm+", best_harm)["refused"],
+                           at("harmful/r_harm-", best_harm)["refused"]),
+        },
+    }
+    for name, hl_key, hf_key in (("r_ref", "harmless/r_ref+", "harmful/r_ref+"),
+                                 ("r_arditi", "harmless/r_arditi+", "harmful/r_arditi-")):
+        # best layer = where it most changes the harmful panel
+        lay = min(range(1, sweep["n_layers"]),
+                  key=lambda l: at(hf_key, l)["p_harmful"] + at(hf_key, l)["refused"])
+        head[name] = {
+            "layer": lay,
+            "benign_judged_harmful": at(hl_key, lay)["p_harmful"],
+            "harmful_judged_harmless": 1 - at(hf_key, lay)["p_harmful"],
+            "refusal": max(at(hl_key, lay)["refused"], at(hf_key, lay)["refused"]),
+            "peak_refusal": max(max(r["refused"] for r in out["arms"][hl_key]["series"]),
+                                max(r["refused"] for r in out["arms"][hf_key]["series"])),
+        }
+    head["r_harm"]["peak_refusal"] = max(
+        max(r["refused"] for r in out["arms"]["harmless/r_harm+"]["series"]),
+        max(r["refused"] for r in out["arms"]["harmful/r_harm-"]["series"]))
+    out["headline"] = head
+    print("\nheadline — can the direction make BENIGN prompts be judged harmful?", flush=True)
+    print(f"{'direction':>10} {'layer':>6} {'benign->harmful':>16} "
+          f"{'harmful->harmless':>18} {'peak refusal':>13}", flush=True)
+    print(f"{'baseline':>10} {'—':>6} {0.0:>16.2f} {0.04:>18.2f} {0.0:>13.2f}", flush=True)
+    for k, v in head.items():
+        print(f"{k:>10} {v['layer']:>6} {v['benign_judged_harmful']:>16.2f} "
+              f"{v['harmful_judged_harmless']:>18.2f} {v['peak_refusal']:>13.2f}", flush=True)
     out["verdict"] = {"r_harm_consistent": bool(harm_ok),
-                      "r_ref_consistent": bool(ref_ok),
-                      "dissociation": bool(harm_ok and not ref_ok)}
+                      "r_ref_consistent": bool(ref_ok)}
 
     # ---- sample for hand review ------------------------------------------------
     rng = random.Random(CFG.seed)

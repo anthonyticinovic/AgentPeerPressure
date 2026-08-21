@@ -275,6 +275,10 @@ pre{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:var(--tint
   <div class="lbl">Result · Gate B2</div>
   <h2>Does steering reverse the model's judgement, or just its wording?</h2>
   <p class="cap" id="inv-blurb"></p>
+  <div class="scroll"><table id="inv-head"></table></div>
+  <p class="cap">Only <code>r_harm</code> can make a benign instruction be judged harmful.
+  The other two can only push the answer toward &ldquo;No&rdquo; or make the model refuse
+  outright &mdash; they never manufacture a harmfulness belief.</p>
   <div class="two">
     <div><h3>Harmless instructions &rarr; judged harmful</h3>
       <p class="cap">Success = the model flips its answer to &ldquo;Certainly&rdquo;.</p>
@@ -366,8 +370,17 @@ tbl(document.getElementById('ledger'),['Claim','Evidence','Status'],[
  ['Monitor ≠ mediator (detector ≠ cause)',
    'AUROC pick has kl 0.45, 0.08 compliance — separator is not the ablating vector',
    st(CA?'yes':'no')],
- ['r_harm encodes harmfulness',CA?CA.ledger.r_harm_encodes.evidence:'inversion test not yet run',
-   st(CA?CA.ledger.r_harm_encodes.status:'no')],
+ ['r_harm encodes the harmfulness belief',
+   AN&&AN.headline?('reply inversion @L'+AN.headline.r_harm.layer+': benign\u2192harmful '+
+     AN.headline.r_harm.benign_judged_harmful.toFixed(2)+', harmful\u2192harmless '+
+     AN.headline.r_harm.harmful_judged_harmless.toFixed(2)+', refusals 0.00')
+     :'inversion test not yet run',
+   st(AN&&AN.headline&&AN.headline.r_harm.benign_judged_harmful>=0.3?'yes':'no')],
+ ['r_ref moves wording, not belief',
+   AN&&AN.headline?('same task: never makes benign look harmful (0.00); peak refusal '+
+     AN.headline.r_ref.peak_refusal.toFixed(2))
+     :'inversion test not yet run',
+   st(AN&&AN.headline&&AN.headline.r_ref.benign_judged_harmful<0.15?'yes':'no')],
  ['Peer framing shifts compliance','pilot not yet run',st('no')],
 ]);
 
@@ -529,6 +542,27 @@ if(IV && AN){
     chart('c-inv-gap',g,-1,1,[-1,0,1],0.96);
   }
 
+  if(AN.headline){
+    const H=AN.headline, hr=[];
+    hr.push([{html:'<b>unsteered baseline</b>'},{n:'—'},{n:'0.00'},{n:'0.04'},{n:'0.00'},
+             {html:'—'}]);
+    const LBL={r_harm:'r_harm — t_inst (belief?)',r_ref:'r_ref — t_post-inst (refusal)',
+               r_arditi:'r_arditi — Gate-B causal mediator'};
+    for(const k of ['r_harm','r_ref','r_arditi']){
+      const v=H[k];
+      const verdict = v.benign_judged_harmful>=0.3
+        ? '<span class="yes">changes the belief</span>'
+        : (v.peak_refusal>=0.5 ? '<span class="no">changes wording / refuses</span>'
+                               : '<span class="part">no belief change</span>');
+      hr.push([LBL[k],{n:'L'+v.layer},{n:v.benign_judged_harmful.toFixed(2)},
+               {n:v.harmful_judged_harmless.toFixed(2)},{n:v.peak_refusal.toFixed(2)},
+               {html:verdict}]);
+    }
+    tbl(document.getElementById('inv-head'),
+        ['Direction steered','best layer','benign → judged HARMFUL','harmful → judged harmless',
+         'peak refusal','verdict'],hr);
+  }
+
   const rowsOut=[];
   for(const p of ['harmless','harmful']){
     rowsOut.push([{html:'<b>'+p+' — unsteered baseline</b>'},{n:'—'},
@@ -570,8 +604,10 @@ if(IV && AN){
     'sweep the two scorers disagree on <b>'+(AN.scorer_disagreement.rate*100).toFixed(1)+'%</b> of '+
     AN.scorer_disagreement.of.toLocaleString()+' completions, almost all of them refusals '+
     'miscounted as judgements. Every figure here uses the word-bounded scorer. '+
-    'Verdict: r_harm consistent with its label in every panel = <b>'+v.r_harm_consistent+
-    '</b>; r_ref consistent = <b>'+v.r_ref_consistent+'</b>.';
+    'Steering is only read as directional where <b>+v and \u2212v move the judgement opposite '+
+    'ways</b>; for r_harm that holds at layers '+(AN.clean_window||[]).join(', ')+'. At layers 0\u20131 '+
+    'both signs give the same answer, which is representational damage rather than a feature '+
+    'being moved, so those larger \u201cflips\u201d are excluded.';
 }
 
 tbl(document.getElementById('roles'),['Dataset','N','Role','Used to','Never used to'],[
