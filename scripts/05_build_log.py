@@ -100,6 +100,10 @@ def build() -> str:
             "samples": _load("dataset_samples.json"),
             "dual": _load("dual_directions.json"),
             "causal": gate_b_payload(),
+            "inv": _load("inversion_sweep.json"),
+            "ana": _load("inversion_analysis.json"),
+            "pre": _load("inversion_preflight.json"),
+            "diag": _load("diag_inversion.json"),
         }
     )
     return TEMPLATE.replace("__DATA__", payload)
@@ -267,6 +271,36 @@ pre{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:var(--tint
   </div>
 </section>
 
+<section id="inv-sec">
+  <div class="lbl">Result · Gate B2</div>
+  <h2>Does steering reverse the model's judgement, or just its wording?</h2>
+  <p class="cap" id="inv-blurb"></p>
+  <div class="two">
+    <div><h3>Harmless instructions &rarr; judged harmful</h3>
+      <p class="cap">Success = the model flips its answer to &ldquo;Certainly&rdquo;.</p>
+      <svg class="ch" id="c-inv-hl" viewBox="0 0 800 210" preserveAspectRatio="none"></svg></div>
+    <div><h3>Harmful instructions &rarr; judged harmless</h3>
+      <p class="cap">Success = the model flips its answer to &ldquo;No&rdquo;.</p>
+      <svg class="ch" id="c-inv-hf" viewBox="0 0 800 210" preserveAspectRatio="none"></svg></div>
+  </div>
+  <div class="two">
+    <div><h3>Refusal rate &mdash; harmless panel</h3>
+      <p class="cap">Whether the intervention made the model <em>refuse</em> rather than judge.</p>
+      <svg class="ch" id="c-inv-rhl" viewBox="0 0 800 210" preserveAspectRatio="none"></svg></div>
+    <div><h3>Refusal rate &mdash; harmful panel</h3>
+      <p class="cap">Zhao&rsquo;s substring scorer counts these as judgements.</p>
+      <svg class="ch" id="c-inv-rhf" viewBox="0 0 800 210" preserveAspectRatio="none"></svg></div>
+  </div>
+  <div><h3>Content gap &mdash; can the model still tell the two apart?</h3>
+    <p class="cap">P(judged harmful) on harmful prompts minus the same on harmless prompts.
+    Unsteered it is <b>0.96</b> (dashed). A belief direction should move the judgement while
+    keeping the two classes apart; a surface push collapses the gap to zero, answering the
+    same way whatever the instruction says.</p>
+    <svg class="ch" id="c-inv-gap" viewBox="0 0 800 210" preserveAspectRatio="none"></svg></div>
+  <div class="scroll"><table id="inv-tbl"></table></div>
+  <p class="cap" id="inv-note"></p>
+</section>
+
 <section>
   <div class="lbl">Method history</div>
   <h2>The corrections that shaped the method</h2>
@@ -295,6 +329,7 @@ pre{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:var(--tint
 
 <script>
 const D=__DATA__, S=D.sweep, SA=D.samples, DU=D.dual, CA=D.causal;
+const IV=D.inv, PRE=D.pre, DG=D.diag, AN=D.ana;
 const el=(t,c,x)=>{const n=document.createElement(t); if(c)n.className=c;
   if(x!==undefined)n.textContent=x; return n;};
 function tbl(node,head,rows){const h=el('tr'); head.forEach(x=>h.append(el('th',null,x)));
@@ -474,6 +509,70 @@ if(DU){const P=DU.positions;
     .4,1,[.5,.75,1]);
   chart('c-cos',[{v:DU.gate_b2.cos_per_layer,c:'var(--ok)',n:'cosine'}],-.3,1,[0,.5,.9],0.0163);
 } else document.getElementById('dual-charts').remove();
+
+
+// ---- Gate B2: reply-inversion sweep -------------------------------------------
+if(IV && AN){
+  const C={'r_harm+':'var(--ok)','r_harm-':'var(--ok)','r_ref+':'var(--accent)',
+           'r_ref-':'var(--warn)','r_arditi+':'var(--fail)','r_arditi-':'var(--fail)'};
+  const arms=p=>Object.keys(AN.arms).filter(k=>k.startsWith(p+'/')).map(k=>k.split('/')[1]);
+  const ser=(p,field)=>arms(p).map(a=>({v:AN.arms[p+'/'+a].series.map(r=>r[field]),
+                                        c:C[a]||'currentColor',n:a}));
+  const B=AN.baseline_p_harmful;
+  chart('c-inv-hl',ser('harmless','p_harmful'),0,1,[0,.5,1],B.harmless);
+  chart('c-inv-hf',ser('harmful','p_harmful'),0,1,[0,.5,1],B.harmful);
+  chart('c-inv-rhl',ser('harmless','refused'),0,1,[0,.5,1]);
+  chart('c-inv-rhf',ser('harmful','refused'),0,1,[0,.5,1]);
+  if(AN.content_gap){
+    const g=Object.entries(AN.content_gap).map(([a,rows])=>
+      ({v:rows.map(r=>r.gap),c:C[a]||'currentColor',n:a}));
+    chart('c-inv-gap',g,-1,1,[-1,0,1],0.96);
+  }
+
+  const rowsOut=[];
+  for(const p of ['harmless','harmful']){
+    rowsOut.push([{html:'<b>'+p+' — unsteered baseline</b>'},{n:'—'},
+      {n:B[p].toFixed(2)},{n:'0.00'},{html:'—'}]);
+    for(const a of arms(p)){
+      const v=AN.arms[p+'/'+a];
+      // Largest movement in EITHER direction, so a refusal-dominated arm is not hidden
+      // by picking only the direction its label predicts.
+      const ext=v.series.filter(r=>r.layer>0)
+                        .reduce((b,r)=>Math.abs(r.p_harmful-B[p])>Math.abs(b.p_harmful-B[p])?r:b);
+      const maxRef=v.series.reduce((m,r)=>Math.max(m,r.refused),0);
+      const d=ext.p_harmful-B[p];
+      let verdict;
+      if(maxRef>=0.5) verdict='<span class="no">induced refusal</span>';
+      else if(Math.abs(d)<0.15) verdict='<span class="part">no effect</span>';
+      else if(d*v.sign>0) verdict='<span class="yes">judgement moved as labelled</span>';
+      else verdict='<span class="no">moved opposite to its label</span>';
+      rowsOut.push([p+' · '+a+(v.sign>0?'  (should raise)':'  (should lower)'),
+        {n:'L'+ext.layer},{n:ext.p_harmful.toFixed(2)},
+        {n:maxRef.toFixed(2)},{html:verdict}]);
+    }
+  }
+  tbl(document.getElementById('inv-tbl'),
+      ['Panel · arm','layer of max shift','P(judged harmful)','peak refusal','reads as'],rowsOut);
+
+  document.getElementById('inv-blurb').innerHTML =
+    'Zhao\u2019s reply-inversion task wraps each instruction in a meta-question '+
+    '(<em>&ldquo;'+IV.question+'&rdquo;</em>), so a <b>harmful</b> prompt should be answered with the '+
+    '<b>acceptance</b> token &ldquo;Certainly&rdquo;. That decouples the answer\u2019s surface form from '+
+    'refusal: a direction that merely elicits refusal pushes toward &ldquo;No&rdquo; <em>even when the '+
+    'belief is harmful</em>. Activation addition, coefficient '+IV.coeff+' on raw diff-of-means, '+
+    'one layer at a time, prefill pass only. Template and coefficient were both fixed on the '+
+    'selection split. Dashed line = unsteered baseline.';
+
+  const v=AN.verdict;
+  document.getElementById('inv-note').innerHTML =
+    '<b>Read the refusal column first.</b> Zhao\u2019s scorer tests for &ldquo;no&rdquo; without a word '+
+    'boundary, so &ldquo;I can<b>no</b>t help&rdquo; scores as a <em>harmless judgement</em>. Across the '+
+    'sweep the two scorers disagree on <b>'+(AN.scorer_disagreement.rate*100).toFixed(1)+'%</b> of '+
+    AN.scorer_disagreement.of.toLocaleString()+' completions, almost all of them refusals '+
+    'miscounted as judgements. Every figure here uses the word-bounded scorer. '+
+    'Verdict: r_harm consistent with its label in every panel = <b>'+v.r_harm_consistent+
+    '</b>; r_ref consistent = <b>'+v.r_ref_consistent+'</b>.';
+}
 
 tbl(document.getElementById('roles'),['Dataset','N','Role','Used to','Never used to'],[
  ['AdvBench (harmful)',{n:S.n_extract},{html:'<b style="color:var(--warn)">FIT</b>'},

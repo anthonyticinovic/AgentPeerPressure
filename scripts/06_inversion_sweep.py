@@ -252,12 +252,16 @@ def main() -> None:
     # (name, vector, sign, context_only) per Zhao's Fig 5 + our Arditi arm.
     arms_harmless = [
         ("r_harm+", D["r_harm"], +1, True),
+        ("r_harm-", D["r_harm"], -1, True),
         ("r_ref+", D["r_ref"], +1, False),
         ("r_ref-", D["r_ref"], -1, False),
         ("r_arditi+", D["r_arditi"], +1, False),
     ]
     arms_harmful = [
         ("r_harm-", D["r_harm"], -1, True),
+        # Same sign as the harmless panel, so the content gap between panels is
+        # measurable for r_harm as it is for r_ref. Zhao only run one sign per panel.
+        ("r_harm+", D["r_harm"], +1, True),
         ("r_ref+", D["r_ref"], +1, False),
         ("r_ref-", D["r_ref"], -1, False),
         ("r_arditi-", D["r_arditi"], -1, False),
