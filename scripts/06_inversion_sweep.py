@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from contextlib import nullcontext
 
 import numpy as np
 import torch
@@ -48,6 +49,7 @@ from pressure.inversion import (
     build_batch,
     build_prompt,
     generate_batch,
+    instruction_clause,
     judge_inversion,
     judge_inversion_strict,
     load_inversion_prompts,
@@ -120,23 +122,46 @@ def build_directions(model, tok, n_fit: int):
 
 
 def run_cell(model, tok, prompts, question, vec, layer, coeff, context_only, max_new,
-             batch, decode_steps):
-    """One (direction, layer, sign) cell over a set of prompts. Returns judgement rows."""
+             batch, decode_steps, gap_ids=None):
+    """One (direction, layer, sign) cell over a set of prompts. Returns judgement rows.
+
+    `gap_ids` = (certainly_id, no_id) additionally records log P(Certainly) - log P(No)
+    at the answer position. The binary flip is what Zhao report, but it only moves once
+    the steer overcomes the model's answer-token prior; the gap shows whether the
+    judgement is shifting at all, which distinguishes "no effect" from "not enough".
+    """
     rows = []
     for i in range(0, len(prompts), batch):
         chunk = prompts[i : i + batch]
-        instrs = [build_prompt(p, question) for p in chunk]
-        rendered = [chat_prompt(tok, s) for s in instrs]
-        enc, mask = build_batch(tok, rendered, instrs, context_only=context_only)
-        if vec is None:
+        rendered = [chat_prompt(tok, build_prompt(p, question)) for p in chunk]
+        spans = [instruction_clause(p) for p in chunk]
+        enc, mask = build_batch(tok, rendered, spans, context_only=context_only)
+        def steer():
+            # A fresh context per forward: the hook counts decoding steps, so reusing an
+            # exhausted one would silently measure the gap with no intervention applied.
+            return (add_direction(model, vec[layer], layer, coeff, mask, decode_steps)
+                    if vec is not None else nullcontext())
+
+        with steer():
             texts = generate_batch(model, tok, enc, max_new)
+        if gap_ids:
+            with steer():
+                gaps = answer_gap(model, tok, enc, *gap_ids)
         else:
-            with add_direction(model, vec[layer], layer, coeff, mask, decode_steps):
-                texts = generate_batch(model, tok, enc, max_new)
-        for p, t in zip(chunk, texts):
-            rows.append({"prompt": p, "reply": t,
+            gaps = [None] * len(chunk)
+        for p, t, g in zip(chunk, texts, gaps):
+            rows.append({"prompt": p, "reply": t, "gap": g,
                          "zhao": judge_inversion(t), "strict": judge_inversion_strict(t)})
     return rows
+
+
+@torch.no_grad()
+def answer_gap(model, tok, enc, yes_id: int, no_id: int) -> list[float]:
+    """log P('Certainly') - log P('No') at the first generated position, under any
+    interventions currently hooked."""
+    e = {k: v.to(model.device) for k, v in enc.items()}
+    lp = torch.log_softmax(model(**e).logits[:, -1, :].float(), dim=-1)
+    return (lp[:, yes_id] - lp[:, no_id]).cpu().tolist()
 
 
 def summarise(rows, target):
@@ -149,6 +174,8 @@ def summarise(rows, target):
         "unparsed": sum(r["zhao"] == UNPARSED for r in rows) / n,
         "refused": sum(r["strict"] == REFUSED for r in rows) / n,
         "disagree": sum(r["zhao"] != r["strict"] for r in rows) / n,
+        "mean_gap": float(np.mean([r["gap"] for r in rows if r["gap"] is not None]))
+        if any(r["gap"] is not None for r in rows) else None,
     }
 
 
@@ -176,6 +203,9 @@ def main() -> None:
     question = templates[t_idx]
     print(f"template {t_idx}: {question}", flush=True)
 
+    gap_ids = (tok("Certainly", add_special_tokens=False)["input_ids"][0],
+               tok("No", add_special_tokens=False)["input_ids"][0])
+
     D = build_directions(model, tok, args.n_fit)
     harmful, harmless = extraction_corpus()
     h_fit, h_sel = split_extract_select(harmful)
@@ -188,20 +218,25 @@ def main() -> None:
         layers = [int(x) for x in args.cal_layers.split(",")]
         out = []
         print(f"\ncalibrating on selection split, layers {layers}", flush=True)
-        print(f"{'coeff':>6} {'layer':>6} {'harmless->Certainly':>20} {'unparsed':>9}", flush=True)
+        base = run_cell(model, tok, B, question, None, 0, 0.0, False,
+                        args.max_new, args.batch, args.decode_steps, gap_ids)
+        bs = summarise(base, JUDGED_HARMFUL)
+        print(f"baseline: flip {bs['zhao_target']:.2f}  gap {bs['mean_gap']:+.2f}\n", flush=True)
+        print(f"{'coeff':>6} {'layer':>6} {'harmless->Certainly':>20} {'gap':>8} "
+              f"{'unparsed':>9}", flush=True)
         for c in [float(x) for x in args.coeffs.split(",")]:
             for lay in layers:
                 rows = run_cell(model, tok, B, question, D["r_harm"], lay, c, True,
-                                args.max_new, args.batch, args.decode_steps)
+                                args.max_new, args.batch, args.decode_steps, gap_ids)
                 s = summarise(rows, JUDGED_HARMFUL)
                 out.append({"coeff": c, "layer": lay, **s})
-                print(f"{c:>6.1f} {lay:>6} {s['zhao_target']:>20.2f} {s['unparsed']:>9.2f}",
-                      flush=True)
+                print(f"{c:>6.1f} {lay:>6} {s['zhao_target']:>20.2f} "
+                      f"{s['mean_gap']:>+8.2f} {s['unparsed']:>9.2f}", flush=True)
         best = max(out, key=lambda r: (r["zhao_target"], -r["unparsed"]))
         print(f"\nbest coeff {best['coeff']} (layer {best['layer']}, "
               f"flip {best['zhao_target']:.2f})", flush=True)
         save_json(CFG.results_dir / "inversion_calibration.json",
-                  {"template_idx": t_idx, "rows": out, "best": best})
+                  {"template_idx": t_idx, "baseline": bs, "rows": out, "best": best})
         return
 
     # ---- Stages 2-3: the layer sweep on held-out prompts ----------------------
@@ -241,7 +276,7 @@ def main() -> None:
         ("harmful", H, arms_harmful, JUDGED_HARMLESS),    # success = flip Certainly -> No
     ):
         base = run_cell(model, tok, prompts, question, None, 0, 0.0, False,
-                        args.max_new, args.batch, args.decode_steps)
+                        args.max_new, args.batch, args.decode_steps, gap_ids)
         bs = summarise(base, target)
         results["panels"][panel] = {"baseline": bs, "arms": {}}
         print(f"[{panel}] baseline flip-rate {bs['zhao_target']:.2f} "
@@ -252,7 +287,7 @@ def main() -> None:
             t0 = time.time()
             for lay in range(L):
                 rows = run_cell(model, tok, prompts, question, sign * vec, lay, coeff,
-                                ctx, args.max_new, args.batch, args.decode_steps)
+                                ctx, args.max_new, args.batch, args.decode_steps, gap_ids)
                 s = summarise(rows, target)
                 series.append({"layer": lay, **s})
                 for r in rows:

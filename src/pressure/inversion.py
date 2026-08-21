@@ -52,6 +52,11 @@ def load_inversion_prompts() -> list[str]:
     return re.findall(r'"([^"]*Certainly[^"]*)"', text)
 
 
+def instruction_clause(instruction: str) -> str:
+    """The steerable part of the inversion prompt: everything before the question."""
+    return f"User wants to {instruction}"
+
+
 def build_prompt(instruction: str, question: str) -> str:
     """Their `formatInp_llama_persuasion` with `use_inversion=True`:
 
@@ -119,12 +124,17 @@ def instruction_span_end(tok, prompt: str, instruction: str) -> int:
     return resolve_positions(tok, prompt, instruction)["task_last"]
 
 
-def build_batch(tok, prompts: list[str], instructions: list[str], context_only: bool):
+def build_batch(tok, prompts: list[str], span_texts: list[str], context_only: bool):
     """Tokenise left-padded, and build a (batch, seq) mask of positions to steer.
 
-    A per-row mask is what makes batching safe: the instruction span ends at a
-    different index in every row, and left padding shifts them all. Their code sidesteps
-    this by running batch_size=1.
+    `span_texts[i]` must be the INSTRUCTION portion only — "User wants to {instruction}"
+    — not the full prompt. Their `intervene_context_only` steers the tokens *before* the
+    inversion question; passing the whole prompt here silently steers the question too,
+    which is a different (and much broader) intervention.
+
+    A per-row mask is what makes batching safe: the instruction span ends at a different
+    index in every row and left padding shifts them all. Their code sidesteps this by
+    running batch_size=1.
     """
     if tok.pad_token_id is None:
         tok.pad_token = tok.eos_token
@@ -137,10 +147,10 @@ def build_batch(tok, prompts: list[str], instructions: list[str], context_only: 
     )
     seq = enc["input_ids"].shape[1]
     mask = torch.zeros(len(prompts), seq)
-    for i, (p, instr) in enumerate(zip(prompts, instructions)):
+    for i, (p, span) in enumerate(zip(prompts, span_texts)):
         unpadded = len(tok(p, add_special_tokens=False)["input_ids"])
         shift = seq - unpadded  # left padding
-        end = shift + (instruction_span_end(tok, p, instr) if context_only else unpadded - 1)
+        end = shift + (instruction_span_end(tok, p, span) if context_only else unpadded - 1)
         mask[i, : end + 1] = 1.0
     return enc, mask
 
