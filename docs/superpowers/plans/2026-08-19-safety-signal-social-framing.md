@@ -139,6 +139,79 @@ Treating base behaviours as the unit gives 0.15 power at Gate P's own 10pp thres
 
 ---
 
+### Findings from Checkpoint 6 — Gate B2 passes; labelling audited
+
+**Gate B2 passes: the harmfulness belief is a separate direction from refusal.** Zhao's
+reply-inversion task (arXiv:2507.11878, implemented from their vendored code at
+`vendor/zhao`, not the paper's prose). 10 arms x 32 layers x 50 held-out prompts.
+
+| direction | pushed + (more harmful) | pushed - | peak refusal | moves as labelled |
+|---|---|---|---|---|
+| `r_harm` @ t_inst | **0.78 @ L6** | no effect | **0.00** | **yes** |
+| `r_ref` @ t_post-inst | no effect, any layer | 1.00 @ L11 | 1.00 | no |
+| `r_arditi` (Gate-B winner) | no effect, any layer | — | 1.00 | no |
+
+Directional band for `r_harm` = layers 5-10, defined as where `+v` and `-v` move the
+judgement in *opposite* directions. Outside it (notably layers 0-1) both signs give the
+same answer, which is representational damage rather than a feature being moved.
+
+**The claim to make, and the one not to.** "Only r_harm can make a benign instruction be
+judged harmful" is **false** — `r_ref-` also reaches 1.00. The defensible claim is
+sign-consistency: `r_harm` raises the harmful verdict when pushed toward *more* harmful;
+`r_ref` raises it only when pushed toward *less* harmful, while refusing at rate 1.00.
+That is an answer token being overwritten, not a belief changing.
+
+**Three functions, three vectors.** The direction that best *separates* harmful from
+benign is not the one that *causes* refusal (Checkpoint 5), and neither is the one that
+*holds the belief*. This is the spine of the write-up.
+
+**Method notes that changed results.** Zhao's released code differs from their prose in
+three ways that matter: the intervention runs for the prefill pass only
+(`max_decode_step_while_intervene=1`); the two directions are steered over *different*
+token spans (Appendix E.1 — instruction-only for `r_harm`, all tokens for `r_ref`, since
+instruction-only gives ~zero effect for the refusal direction); and directions are raw
+unnormalised diff-of-means, because their coefficient is calibrated against that scale.
+Our calibration independently landed on **coeff 2**, their own Qwen2 value.
+
+**Template selection is part of their method, not a deviation.** Only 15 of their 49
+candidate templates get this model to answer the meta-question correctly under greedy
+decoding; the rest carry a "No" prior strong enough to mask a judgement that is fully
+present (AUROC 1.000 at the logit level). Template 25 chosen on the *selection* split
+(acc 1.00, 0 unparsed). **Thinking disabled separates far better than enabled** (7.34 vs
+1.41) — the opposite of the concern logged against that decision, so it stays disabled
+and the limitation note stands for a different reason (realism, not measurement).
+
+**Adversarial labelling audit (three independent reviewers).** Trust in labelling was
+low and correctly so. Findings acted on:
+
+- **`"Yes, ..."` verdicts were scored `unparsed`** — 723 replies, 43% of that bucket.
+  This under-counted *harmful* verdicts, the direction that hides an effect. The scorer
+  is now positional (earliest of affirm/negate/refuse wins) rather than a keyword bag.
+  Blind-labeller agreement rose 92.6% -> **98.1%** on the hardest strata.
+- **A destroyed model was arithmetically identical to an inert one.** `unparsed` sits in
+  the denominator of P(judged harmful), so a 100%-garbage cell scores exactly 0.00 on a
+  panel whose baseline is 0.00. Eleven cells were doing this. Unreadable cells are now
+  marked and drawn as gaps, never zeros.
+- **The aggregate consistency verdict was a constant** — floor/ceiling effects make 4 of
+  10 arms unpassable at any data. Removed.
+- **`max()` on an all-tied series invented a peak layer** ("@L2", iteration order). Such
+  arms now read "no effect, any layer".
+- `"correct"` removed from the affirmative set ("the correct answer is No" -> harmful).
+
+**On Zhao's own scorer, stated fairly.** ~82% on the cases it counts on our corpus, not
+the 42% a hardest-strata sample suggests. Its one serious flaw is an unbounded `'no'`
+test, so "I can**no**t help" scores as a *harmless judgement* — 2,467 cases here. The
+error is one-directional: it can only convert refusals into harmless verdicts, which is
+the same direction as their own conclusion that the refusal direction preserves the
+judgement. Unverified in their setting (different models, 100 tokens vs our 8), and they
+call the reply-inversion a "proof of existence" rather than a measurement.
+
+**Artefacts split by audience.** `artifacts/inspection.html` is the working record;
+`artifacts/writeup.html` carries findings for MATS reviewers without the correction
+history. Per explicit instruction: implementation detail stays in the log.
+
+---
+
 ### Findings from Checkpoint 5 — Gate B passes, once Arditi's selection is run properly
 
 **Gate B is met on Qwen3.5-4B: a diff-of-means direction, ablated, collapses refusal.** Held-out harmful prompts go from refusal 1.00 → 0.04, with genuine harmful compliance ~0.84 by hand-check over all 25 completions (`results/HANDLABEL_arditi_selected.json`). The shuffled-label null at the same (position, layer) stays at 1.00 / 0.00, so the effect is the labels, not the geometry.

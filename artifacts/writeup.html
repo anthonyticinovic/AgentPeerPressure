@@ -192,6 +192,27 @@ li::marker{color:var(--soft)}
 </section>
 
 <section>
+  <div class="eyebrow">Confidence</div>
+  <h2>How these numbers were checked</h2>
+  <ul>
+    <li><b>Controls that can fail.</b> A shuffled-label direction, built the same way
+    from the same activations at the same site, leaves refusal at 1.00 and compliance at
+    0.00. Selection additionally enforces a KL ceiling, which rejects directions that
+    suppress the refusal <em>token</em> rather than the feature.</li>
+    <li><b>Compliance is hand-read, never judged.</b> An automated judge scored 0.20 on
+    the ablation transcripts against 0.84 by hand, reading only framing-heavy openings.
+    Every compliance figure here comes from reading the full completion.</li>
+    <li><b>Verdict labels validated blind.</b> An independent labeller, given replies
+    with all labels stripped and stratified toward the hardest cases, agrees with the
+    scorer on <b>98.1%</b> of them &mdash; the one disagreement being their own
+    lowest-confidence call.</li>
+    <li><b>Unreadable cells are not zeros.</b> Where steering degrades the model badly
+    enough that replies parse to nothing, the cell is marked unreadable and left as a gap
+    rather than plotted as no-effect.</li>
+  </ul>
+</section>
+
+<section>
   <div class="eyebrow">Limits</div>
   <h2>What this does not yet show</h2>
   <ul>

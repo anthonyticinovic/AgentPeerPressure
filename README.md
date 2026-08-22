@@ -5,19 +5,26 @@ refusal *behaviour* come apart while the model's internal *harmfulness belief* i
 If a monitor watches the refusal direction, social framing can slip a harmful action past it
 without the model ever "deciding" the task is safe.
 
-## State (2026-08-21)
+## State (2026-08-22)
 
-Phase 1 (directions) is done on the local 4B model. **Gate B passes:** a diff-of-means
-direction, selected by Arditi's real criterion, causally ablates refusal
-(1.00 → 0.04, 0.84 harmful compliance by hand). Full narrative and numbers:
+**Read [`docs/STATE.md`](docs/STATE.md) first** — it is the durable handoff: established
+results, frozen parameters, measurement traps, and what comes next.
 
-- **Research log** — `artifacts/inspection.html` (built by `scripts/05_build_log.py`). The
-  canonical record: ledger of what is established, dated entries E1–E11, Gate B table.
+Phase 1 (directions) is complete on the local 4B. Both preconditions hold: refusal is
+causally mediated (**Gate B**), and the harmfulness belief is a *separate* direction
+(**Gate B2**). The main peer-framing experiment has not started.
+
+- **Research log** — `artifacts/inspection.html` (`scripts/05_build_log.py`). The working
+  record: every decision, dead end and retraction, in order.
+- **Write-up** — `artifacts/writeup.html` (`scripts/08_build_writeup.py`). Findings only,
+  for an interp-literate reader. Implementation history stays in the log.
 - **Plan** — `docs/superpowers/plans/2026-08-19-safety-signal-social-framing.md`. Phases,
-  gates, and "Findings from Checkpoint N" sections. Checkpoint 5 is the current front.
+  gates, and "Findings from Checkpoint N" sections. Checkpoint 6 is the current front.
 
-Key nuance the thesis rests on: the direction that **separates** harmful from benign (the
-monitor) is *not* the direction that **ablates** refusal (the mediator) — detector ≠ cause.
+Key finding so far — **three functions, three different vectors**: the direction that
+**separates** harmful from benign is not the one that **causes** refusal, and neither is
+the one that **holds the harmfulness belief**. Which of the three a monitor tracks
+determines what a manipulation would have to defeat.
 
 ## Pipeline
 
@@ -29,7 +36,10 @@ Run in order; `--iter` uses the 4B iteration model, no flag uses the 9B eval mod
 | 02 | `dual_directions.py` | `r_ref`/`r_harm` at both token positions, Gate B2 |
 | 03 | `arditi_selection.py` | 288-candidate grid, selected `(i*, l*)` by bypass/induce/kl |
 | 04 | `arditi_generation_check.py` | 256-token behavioural confirmation + controls |
-| 05 | `build_log.py` | regenerates `artifacts/inspection.html` from `results/*.json` |
+| 05 | `build_log.py` | regenerates `artifacts/inspection.html` |
+| 06 | `inversion_sweep.py` | Zhao reply-inversion, `--stage calibrate` then `sweep` |
+| 07 | `inversion_analysis.py` | sign-consistency, content gap, artefact test |
+| 08 | `build_writeup.py` | regenerates `artifacts/writeup.html` |
 
 ```bash
 uv run python scripts/03_arditi_selection.py --iter
@@ -55,6 +65,9 @@ should be needed — set `PRESSURE_EVAL_MODEL` / `PRESSURE_DEVICE` and run witho
 
 ## Measurement discipline
 
-Compliance has been mis-measured three times, each time by a token/prefix proxy (substring
-refusal markers; two over-strict judges). **The number that stands is always the hand-check.**
-Any new compliance metric must be validated against hand labels before its value is quoted.
+Compliance and judgement have been mis-measured **five** times, every time by a proxy:
+substring refusal markers; an over-strict judge; a self-invented prefix objective; Chinese
+refusals scored unparsed; and `"Yes, …"` verdicts scored unparsed (723 replies).
+**The number that stands is always the hand-check.** Any new metric must be validated
+against blind labels before its value is quoted — see `docs/STATE.md` §3 for the analysis
+traps already fixed, which are easy to reintroduce.
