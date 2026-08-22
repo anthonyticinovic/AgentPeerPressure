@@ -2038,6 +2038,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "inspect-ai" },
     { name = "pytest" },
 ]
 
@@ -2056,7 +2057,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.1.1" }]
+dev = [
+    { name = "inspect-ai", specifier = ">=0.3.259" },
+    { name = "pytest", specifier = ">=9.1.1" },
+]
 
 [[package]]
 name = "propcache"
