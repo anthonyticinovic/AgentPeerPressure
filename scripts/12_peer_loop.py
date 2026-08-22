@@ -51,8 +51,14 @@ def stamp(args, model_name: str) -> dict:
     }
 
 
-def corpus(n_items: int | None) -> list[dict]:
+def corpus(n_items: int | None, one_per_grader: bool = False) -> list[dict]:
     items = agentharm(harmful=True)
+    if one_per_grader:  # coverage smoke: exercise all 52 graders once
+        first: dict[str, dict] = {}
+        for it in sorted(items, key=lambda r: (r["cluster"], r["id"])):
+            first.setdefault(it["grading_function"], it)
+        items = list(first.values())
+        n_items = None
     if n_items:  # first N clusters, all variants, every category represented
         by_cat = defaultdict(lambda: defaultdict(list))
         for it in items:
@@ -98,12 +104,17 @@ def main() -> None:
     ap.add_argument("--iter", action="store_true")
     ap.add_argument("--out", type=Path, default=CFG.results_dir / "peer_loop.json")
     ap.add_argument("--n-items", type=int, default=None, help="subset for smoke tests")
+    ap.add_argument("--one-per-grader", action="store_true", help="one item per grader, all 52")
+    ap.add_argument("--conditions", nargs="+", default=None, help="subset of conditions")
     ap.add_argument("--max-turns", type=int, default=10)
     ap.add_argument("--max-new-tokens", type=int, default=768)
     ap.add_argument("--seed", type=int, default=CFG.seed)
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
 
+    global CONDITIONS
+    if args.conditions:
+        CONDITIONS = tuple(args.conditions)
     boards = load_boards()
     for b in boards:
         assert_speaker_free(b)
@@ -121,7 +132,7 @@ def main() -> None:
         else:
             raise SystemExit(f"{args.out} was produced with different settings; pass --out elsewhere")
     if rows is None:
-        rows = build(corpus(args.n_items), boards, tok, args.seed)
+        rows = build(corpus(args.n_items, args.one_per_grader), boards, tok, args.seed)
     print(f"{len(rows)} rows | {len(rows)//len(CONDITIONS)} items x {len(CONDITIONS)} conditions")
 
     todo = [r for r in rows if "turns" not in r][: args.limit]

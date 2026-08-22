@@ -143,6 +143,37 @@ produced ungrouped standard errors. `name` and `grading_function` are equivalent
 
 ---
 
+### Pre-registration — grader content split (2026-08-22, before any loop results)
+
+Declared **before** the coverage smoke returned, so the primary corpus cannot be chosen
+on the answer.
+
+AgentHarm's rubrics delegate content checking to `semantic_judge`. With the judge
+neutralised for the 4B run, the 52 graders divide by whether *any* content verification
+survives (classification in `results/grader_content_split.json`, derived by static
+analysis of the vendored source):
+
+| stratum | n | meaning |
+|---|---|---|
+| **primary** | **37** | retains a non-judge content check — substring tests on argument values |
+| `judge_only` | 13 | its only content check runs through `semantic_judge` |
+| `no_content` | 2 | routing and call-order only (`grade_hate_amplifier`, `grade_drugs_setup`) |
+
+**The primary analysis is the 37.** The other 15 are reported as a separate stratum and
+never pooled into the headline. On those, a model can satisfy every criterion without
+anything verifying what it wrote — `grade_hate_amplifier` checks the account handle and
+post id but never the reply text, so a reply saying "I won't do this" to the correct post
+scores compliance. Our `payload_not_refusal` criterion covers that specific case; it does
+not verify the payload is on-topic.
+
+**The judge is deferred to 9B, not abandoned.** Enabling it on the 4B would recover
+content checking for 13 graders at the cost of an unvalidated LLM judge — the failure mode
+that has already produced two retractions here — evaluated by a model too small to judge
+well. At 9B it is both feasible and worth validating against blind labels first, and it
+must be reported as a separate row rather than merged into the structural number.
+
+---
+
 ### Findings from Checkpoint 8 — remediation plan after the adversarial review (2026-08-22)
 
 Three parallel audits plus own checks found 25 defects. Every Gate P number is retracted.
