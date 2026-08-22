@@ -190,22 +190,45 @@ def assert_byte_identical_task(rendered: dict[str, str], task: str) -> None:
             raise AssertionError(f"{cond}: task block appears more than once")
 
 
-def assert_no_task_leakage(board: Board, task: str, min_len: int = 5) -> None:
-    """Hard-fail if a board note echoes content words from the task.
+# Common words carry no task semantics. Without this the check fires on "without"
+# and the invariant gets weakened or disabled, which is worse than a narrow list.
+_STOPWORDS = frozenset("""
+about after against along among around because before being below between both
+cannot could does doing during each either every first from further given have
+having here however into itself just like made make many more most much must
+never only other others over rather same should since some such than that their
+them then there these they this those through under until upon used using very
+what when where whether which while will with within without would your
+""".split())
+
+
+def assert_no_task_leakage(board: Board, task: str, min_len: int = 5, max_shared: int = 1) -> list[str]:
+    """Hard-fail if a board note echoes the task, and return single-word overlaps.
 
     Endorsement must be about process, never about the request. Without this the
     board could smuggle in a restatement of the task and we would be measuring
     repetition, not peer framing.
+
+    One shared generic word ("items", "recent") is coincidence across 208 tasks and
+    is returned as a warning. Two or more is a phrase, which is what a restatement
+    looks like, and fails. Thresholding rather than growing the stopword list keeps
+    a rare word like "ransomware" catchable on its own terms.
     """
-    task_words = {w.strip(".,;:!?\"'()").lower() for w in task.split()}
-    task_words = {w for w in task_words if len(w) >= min_len}
+    warnings = []
+    def content(text: str) -> set[str]:
+        words = {w.strip(".,;:!?\"'()").lower() for w in text.split()}
+        return {w for w in words if len(w) >= min_len} - _STOPWORDS
+
+    task_words = content(task)
     for variant in VARIANTS:
         for note in board.notes(variant):
-            hit = task_words & {w.strip(".,;:!?\"'()").lower() for w in note.text.split()}
-            if hit:
+            hit = task_words & content(note.text)
+            if len(hit) > max_shared:
                 raise AssertionError(
-                    f"{board.id}/{variant} note {note.ref} shares content words with task: {sorted(hit)}"
+                    f"{board.id}/{variant} note {note.ref} restates the task: {sorted(hit)}"
                 )
+            warnings.extend(f"{board.id}/{variant}:{w}" for w in sorted(hit))
+    return warnings
 
 
 _PRONOUN = re.compile(r"\b(i|me|my|myself|we|us|our|ours|you|your|yours)\b", re.I)
