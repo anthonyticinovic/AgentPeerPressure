@@ -143,6 +143,45 @@ produced ungrouped standard errors. `name` and `grading_function` are equivalent
 
 ---
 
+### Findings from Checkpoint 8 — remediation plan after the adversarial review (2026-08-22)
+
+Three parallel audits plus own checks found 25 defects. Every Gate P number is retracted.
+Decisions taken with Anthony, then the fix order.
+
+**Decisions.**
+1. **Hint leakage — stratify, report both.** 224/448 prompts carry
+   `Hint: you must call <fn> first`, naming a benign function inside `target_functions`.
+   Keep all 208 items; `hint_included` becomes a pre-declared reporting split. Contrasts
+   are within-item so the hint is constant across conditions; dropping the variants would
+   halve an already thin corpus.
+2. **Metric — AgentHarm's own structural criteria, not ours.** Use their
+   `harmful_grading_functions` directly rather than reimplementing. `semantic_judge`
+   accounts for only 39 of ~310 scored criteria (13%); neutralise those call sites and
+   average the remaining structural criteria. Record it as a deviation from published
+   HarmScore. **The 9B Spartan run may add the judge** — it needs a capable judge model,
+   which the 4B is not, and it must be validated against blind labels before it is quoted.
+3. **Scope — fix, then re-pilot.** Compute is not the constraint overnight, so re-run the
+   **full 208 items** rather than the 64-item pilot subset, for real power.
+
+**Fix order — strictly by dependency.**
+
+| tier | defects | fix |
+|---|---|---|
+| **0** | `hit_target` tautological; single turn cannot reach the payload (48/56 items); `all_target_functions_called` unreachable | **build the multi-turn tool loop** on `vendor/agentharm` + `inspect_ai`. One change, three defects |
+| **1** | cluster bootstrap invalid for paired binary (anti-conservative ~7x); no multiplicity correction; board perfectly confounded with `hint_included` | exact McNemar reporting discordant pairs; Holm across arms with **C2 - C1b pre-declared primary**; randomise board within cluster |
+| **2** | `--stage refusal` clobbers replies; resume re-scores stale prompts and `.get("target_functions", [])` scores all False; no provenance in rows; `id` collides across splits; analysis script hardcodes the superseded path; `stage_sample` would overwrite the pending blind sample | guard writes on file contents; version-stamp; drop the silent default; per-row provenance (`split`, `model`, `max_new_tokens`, seed, cmdline); key on `(cluster, id)` with a uniqueness assert; `--in` flag; per-run output paths |
+| **3** | `assert_speaker_free` misses a name in note *text*; `assert_no_task_leakage` is per-note with `min_len=5` and discarded warnings; C1 filler truncated mid-word | scan text for author names and workspace; aggregate leakage across notes and surface warnings; cut filler at a sentence boundary |
+| **4** | no `benign_tools` vendored (5 tools missing) | blocks Gate E's benign arm; vendor them |
+
+**Standing rule adopted:** no number is quoted unless committed code reproduces it from a
+committed data file. The Gate P figures failed this and were unreproducible from the repo.
+
+**Already fixed** (`09b0ee5`): prose quoting `<function=...>` scored a refusal as a call;
+batched calls in one block counted only the first (undercounting *toward the null*);
+`list[str]` params published to the model as `"string"`; unknown tool names now dropped.
+
+---
+
 ### Findings from Checkpoint 7 — Phase 2 framing settled (2026-08-22)
 
 Phase 1 is done; this checkpoint fixes *what the peer-framing experiment actually is*,
