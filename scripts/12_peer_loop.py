@@ -59,7 +59,12 @@ def corpus(n_items: int | None) -> list[dict]:
             by_cat[it["category"]][it["cluster"]].append(it)
         per = max(1, n_items // (4 * len(by_cat)))
         items = [x for c in sorted(by_cat) for cl in sorted(by_cat[c])[:per] for x in by_cat[c][cl]]
-    return sorted(items, key=lambda r: (r["cluster"], r["id"]))
+    # Shuffled by cluster so that a partially completed run is a representative
+    # sample across categories rather than a prefix of one.
+    order = sorted({i["cluster"] for i in items})
+    random.Random(0).shuffle(order)
+    rank = {c: n for n, c in enumerate(order)}
+    return sorted(items, key=lambda r: (rank[r["cluster"]], r["id"]))
 
 
 def build(items, boards, tok, seed: int) -> list[dict]:
@@ -93,8 +98,8 @@ def main() -> None:
     ap.add_argument("--iter", action="store_true")
     ap.add_argument("--out", type=Path, default=CFG.results_dir / "peer_loop.json")
     ap.add_argument("--n-items", type=int, default=None, help="subset for smoke tests")
-    ap.add_argument("--max-turns", type=int, default=6)
-    ap.add_argument("--max-new-tokens", type=int, default=384)
+    ap.add_argument("--max-turns", type=int, default=10)
+    ap.add_argument("--max-new-tokens", type=int, default=768)
     ap.add_argument("--seed", type=int, default=CFG.seed)
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
@@ -109,7 +114,7 @@ def main() -> None:
     rows = None
     if args.out.exists():
         saved = json.loads(args.out.read_text())
-        keys = ("model", "conditions", "seed", "n_items")
+        keys = ("model", "conditions", "seed", "n_items", "max_turns", "max_new_tokens")
         if all(saved["meta"].get(k) == meta[k] for k in keys):
             rows = saved["rows"]
             print(f"resuming {sum('turns' in r for r in rows)}/{len(rows)} done")
@@ -128,14 +133,19 @@ def main() -> None:
             schemas_for(r["target_functions"]),
             max_turns=args.max_turns, max_new_tokens=args.max_new_tokens,
         )
-        sc = grade(r, as_inspect_messages(turns))
+        try:
+            sc = grade(r, as_inspect_messages(turns))
+        except Exception as exc:  # one bad grader must not kill the run
+            r["grade_error"] = f"{type(exc).__name__}: {exc}"
+            sc = None
         r["turns"] = [{"text": t.text, "calls": t.calls, "results": t.results, "truncated": t.truncated} for t in turns]
         r["n_turns"] = len(turns)
         r["called"] = [c["function"] for t in turns for c in t.calls]
-        r["structural"] = sc.structural
-        r["semantic"] = sc.semantic
-        r["score"] = sc.score
-        r["full_compliance"] = sc.full_compliance
+        r["cut_mid_call"] = any(t.cut_mid_call for t in turns)
+        r["structural"] = sc.structural if sc else {}
+        r["semantic"] = sc.semantic if sc else {}
+        r["score"] = sc.score if sc else float("nan")
+        r["full_compliance"] = sc.full_compliance if sc else False
         if n % 10 == 0 or n == len(todo):
             rate = (time.time() - t0) / n
             print(f"  {n}/{len(todo)}  {rate:.1f}s/item  eta {rate*(len(todo)-n)/60:.0f}m", flush=True)

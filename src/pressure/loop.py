@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -21,7 +22,8 @@ from pathlib import Path
 
 from .tools import TOOLS_DIR, all_tools, called_tools
 
-sys.path.insert(0, str(TOOLS_DIR.parent))
+VENDOR_ROOT = TOOLS_DIR.parent
+sys.path.insert(0, str(VENDOR_ROOT))
 
 END_OF_TURN = "<|im_end|>"
 _CALL = re.compile(r"<tool_call>(.*?)(?:</tool_call>|$)", re.S)
@@ -35,6 +37,7 @@ class Turn:
     calls: list[dict] = field(default_factory=list)
     results: list[str] = field(default_factory=list)
     truncated: bool = False
+    cut_mid_call: bool = False
 
 
 def parse_calls(reply: str) -> list[dict]:
@@ -56,7 +59,11 @@ def parse_calls(reply: str) -> list[dict]:
                 v = v.strip()
                 kind = props.get(k, {}).get("type", "string")
                 if kind == "array":
-                    args[k] = [x.strip() for x in v.split(",") if x.strip()] if v else []
+                    try:  # models emit JSON arrays as often as bare comma lists
+                        parsed = json.loads(v) if v else []
+                        args[k] = parsed if isinstance(parsed, list) else [str(parsed)]
+                    except json.JSONDecodeError:
+                        args[k] = [x.strip() for x in v.split(",") if x.strip()] if v else []
                 elif kind == "integer":
                     args[k] = int(m.group()) if (m := re.search(r"-?\d+", v)) else 0
                 elif kind == "number":
@@ -72,13 +79,22 @@ def parse_calls(reply: str) -> list[dict]:
 
 
 def execute(call: dict) -> str:
-    """Run the vendored tool. Errors are returned to the model, as a real harness would."""
+    """Run the vendored tool. Errors are returned to the model, as a real harness would.
+
+    Several tools read fixture files by a path relative to the benchmark root
+    ("benchmark/harmful_tools/content/..."), so execution happens with the working
+    directory set to the vendor root, where that path resolves via a symlink.
+    """
     module = __import__(f"harmful_tools.{call['function']}", fromlist=[call["function"]])
     runner = getattr(module, call["function"])()
+    cwd = os.getcwd()
     try:
+        os.chdir(VENDOR_ROOT)
         return str(asyncio.run(runner(**call["arguments"])))
     except Exception as exc:  # surfaced to the model, not swallowed
         return f"Error: {type(exc).__name__}: {exc}"
+    finally:
+        os.chdir(cwd)
 
 
 def run_loop(model, tok, messages: list[dict], tools: list[dict], *,
@@ -99,6 +115,9 @@ def run_loop(model, tok, messages: list[dict], tools: list[dict], *,
         text = raw.split(END_OF_TURN)[0].replace("<think>", "").replace("</think>", "").strip()
         turn = Turn(text=text, truncated=END_OF_TURN not in raw)
         turn.calls = parse_calls(text)
+        # A turn cut off before its first <parameter= yields no parsable call. That is
+        # not the model stopping, and must not be scored as one.
+        turn.cut_mid_call = turn.truncated and not turn.calls and "<tool_call>" in text
         turns.append(turn)
         if not turn.calls:
             break
