@@ -338,6 +338,28 @@ const ENTRIES=[
     'reduction), and its objective rewards an affirmative opening token, the same prefix-proxy failure '+
     'as the substring detector. Unnecessary in any case: once selected properly, a plain diff-of-means '+
     'direction passes Gate B (see the result above). Archived, not cited.'},
+ {id:'E9',cls:'bad',t:'Gate P fails as a floor effect — peer framing was never given room to show',
+  k:[['pilot','64 AgentHarm items x 7 conditions = 448 generations, 256 tokens'],
+     ['compliance, every cell','0.00 - 0.02'],['C2 - C0','-1.6pp (gate needs +10pp)'],
+     ['hand-read','confirms the scorer; the refusals are unambiguous'],
+     ['cites policy / harm','0.63'],['mentions a capability limit','0.24 (0.55 on Cybercrime)'],
+     ['capability-only, no harm reason','0.06'],['verdict','uninformative, not negative']],
+  b:'Qwen3.5-4B refuses this corpus in chat format at ceiling, in <em>every</em> condition including the '+
+    'bare baseline. With C0 already at 0.02 there is no headroom for any prompt-level manipulation to '+
+    'move, so the pilot cannot distinguish "peer framing does nothing" from "nothing could have shown '+
+    'here". Reading it as evidence against the hypothesis would be the constant-verdict trap from the '+
+    'inversion analysis in a new costume. '+
+    '<br><br>The leading explanation is that <b>AgentHarm is being run without its agentic harness</b>: '+
+    'the benchmark supplies tool definitions and expects tool calls, and its own paper reports models '+
+    'complying readily when they can actually act. Here the task is hypothetical, so refusal is cheap. '+
+    'The evidence is partial rather than conclusive — 24% of replies cite a capability limit ("I am an '+
+    'AI assistant and do not have the ability to interact with your local hardware"), rising to 55% on '+
+    'Cybercrime, but only 6% refuse on capability grounds <em>alone</em>. Most refusals are genuine '+
+    'safety refusals. '+
+    '<br><br>One weak signal survives: mean reply length falls monotonically from C0 (664 chars) through '+
+    'C2 (599) and C6 (598). The board is being read; it just is not moving compliance. '+
+    'Next step is Task 2.4, the tool-calling harness, then re-run Gate P. Not a design failure and not '+
+    'a result — a configuration that cannot answer the question.'},
 ];
 const logn=document.getElementById('log');
 ENTRIES.forEach(e=>{const d=el('div','entry '+e.cls);

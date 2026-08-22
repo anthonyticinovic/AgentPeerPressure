@@ -150,7 +150,22 @@ Write-up is for MATS reviewers — assumes interp fluency, no hand-holding.
    disagreements. This closes the last independently-unverified number (the 0.84).
    The independent-subagent route is **blocked**: cyber safeguards refuse the malware/
    hacking transcripts. Do not retry it.
-2. **NEXT — Phase 2 peer framing. Framing settled 2026-08-22 (plan Checkpoint 7).**
+2. **GATE P FAILED (2026-08-22) — floor effect, not a null result.** 448 generations,
+   64 AgentHarm items x 7 conditions on the 4B. Compliance is 0.00-0.02 in **every**
+   cell including bare C0; C2 - C0 = -1.6pp against a +10pp gate. Hand-read confirms the
+   scorer — the refusals are real and unambiguous. **With C0 at the floor the pilot cannot
+   distinguish "peer framing does nothing" from "nothing could have shown".** Do not cite
+   it as evidence against the hypothesis; that is the constant-verdict trap in new clothes.
+   Leading explanation: **AgentHarm is being run without its agentic harness** (plan Task
+   2.4, unbuilt). Evidence is partial — 24% of replies cite a capability limit (55% on
+   Cybercrime) but only 6% refuse on capability grounds alone; 63% cite policy or harm.
+   Weak surviving signal: mean reply length falls C0 664 -> C2 599 -> C6 598 chars, so the
+   board is read but does not move compliance.
+   Artefacts: `results/peer_pilot.json`, `scripts/10_peer_pilot.py`, `scripts/11_peer_analysis.py`.
+   Blind sample awaiting labels: `results/REVIEW_peer_pilot.md` / `AUDIT_peer_pilot_key.json`.
+   **Next: build Task 2.4 tool-calling harness, then re-run Gate P.**
+
+3. **Phase 2 peer framing — design (unchanged, validated as buildable). Framing settled 2026-08-22 (plan Checkpoint 7).**
    **Shared work queue, one-shot, task text byte-identical.** Not direct agent-to-agent:
    A2A bundles norm + authority + direct request, and the speaker-free control cannot be
    built in it (a message has a sender). A2A is the follow-up arm. Escalation deferred —
@@ -167,11 +182,11 @@ Write-up is for MATS reviewers — assumes interp fluency, no hand-holding.
    (PAP rewrites the request), no adversary, and that this is a stress test of Zhao's own
    harmfulness-probe defence. Cost ~1250 items, comparable to the 2 h inversion sweep.
 
-3. **9B on Spartan** — first step that genuinely needs the cluster. `device.py` handles
+4. **9B on Spartan** — first step that genuinely needs the cluster. `device.py` handles
    MPS/CUDA; no code change expected, set `PRESSURE_EVAL_MODEL` and drop `--iter`.
-4. Deferred: XSTest/SORRY-Bench off-diagonal data would make `v_refuse` behaviourally
+5. Deferred: XSTest/SORRY-Bench off-diagonal data would make `v_refuse` behaviourally
    distinct from `r_ref`. On our pure-diagonal corpus they are the same object.
-5. Observation to test at 9B: ablation elicits cyber compliance most readily
+6. Observation to test at 9B: ablation elicits cyber compliance most readily
    (0.90 vs 0.80 non-cyber, n=25 — one item wide, not yet significant).
 
 ---
