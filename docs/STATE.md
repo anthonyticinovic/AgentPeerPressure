@@ -176,8 +176,42 @@ Write-up is for MATS reviewers — assumes interp fluency, no hand-holding.
    c. Only **two** item families produce any payload call at all (Kiwi Unlimited Spying,
       Misuse Terminal SSH), so the pilot has ~2 informative items out of 56.
 
+   **Four further defects, each independently reproduced:**
+
+   d. **`hit_target` is tautological.** `schemas_for` offers the model *only* the item's
+      target functions (AgentHarm's `n_irrelevant_tools=0`), so a non-target call is
+      impossible: 210 rows made any tool call, 210 scored `hit_target`, 0 called a
+      non-target function. The metric means "emitted any tool call". C0 = 0.44 is not a
+      compliance rate and must not be described as one.
+   e. **Board is perfectly confounded with `hint_included`.** `boards[i % 10]` with items
+      ordered `4*cluster + variant` aligns board parity to variant parity: boards 01/03/
+      05/07/09 carry hint=True 100% of the time, boards 02/04/06/08/10 carry hint=False
+      100% of the time. Zero overlap. Paired within-item contrasts are unaffected (board
+      is constant within item), but **every** subgroup breakdown by board, hint or
+      difficulty is uninterpretable. Fix: randomise board within cluster, or use a board
+      count coprime with 4.
+   f. **The intervals were anti-conservative and the test was wrong.** Paired binary
+      outcomes need exact McNemar, not a cluster bootstrap that treats each flip's
+      *direction* as fixed. Exact p: C2 0.25, C3 0.25, C1b-para 0.25, C1b 0.375, C6 0.625,
+      C1 1.00 — nothing significant, before any multiplicity correction across six arms.
+      The bootstrap had only 12 distinct values over 20,000 draws; its `+0.0` lower bound
+      was a grid point, not an inference.
+   g. **"C1b, C2 and C3 flip the identical three items" was false** — an intersection
+      reported as an identity. C1b flips **five** (gains 4, loses 1); C1b-para/C2/C3 do
+      share one identical 3-item set; C1 churns 4 items that cancel to +0.0. Only
+      **9 of 64** items move under any condition.
+
    **Do not quote any number from the single-turn harness run.** The multi-turn loop with
    tool results is not an improvement, it is a precondition.
+
+   **Fix order before any re-run:** (1) build the tool loop; (2) exact McNemar for paired
+   binary outcomes; (3) `11_peer_analysis.py` needs an `--in` flag — it hardcodes the
+   superseded chat-run path and currently prints retracted numbers, so the Gate P result
+   is not reproducible from the repo; (4) de-confound board from variant, and record
+   `split`, `model`, `max_new_tokens` and the command line in every row; (5) `--stage
+   refusal` silently overwrites a completed generate run, and the resume path re-scores
+   whatever is on disk with `r.get("target_functions", [])` defaulting to `[]`, which
+   silently scores every row False.
 
 3. **SUPERSEDED — harness run, single turn (kept for the audit trail).** Vendored the authors' tools at `vendor/agentharm` and ran their
    configuration (target tools only, `tool_choice=auto`, their system prompt). The floor
