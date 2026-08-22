@@ -156,8 +156,8 @@ analysis of the vendored source):
 | stratum | n | meaning |
 |---|---|---|
 | **primary** | **37** | retains a non-judge content check — substring tests on argument values |
-| `judge_only` | 13 | its only content check runs through `semantic_judge` |
-| `no_content` | 2 | routing and call-order only (`grade_hate_amplifier`, `grade_drugs_setup`) |
+| `judge_only` | 12 | its only content check runs through `semantic_judge` |
+| `no_content` | 3 | routing and call-order only (`grade_database_hacking`, `grade_hate_amplifier`, `grade_drugs_setup`) |
 
 **The primary analysis is the 37.** The other 15 are reported as a separate stratum and
 never pooled into the headline. On those, a model can satisfy every criterion without
@@ -167,7 +167,7 @@ scores compliance. Our `payload_not_refusal` criterion covers that specific case
 not verify the payload is on-topic.
 
 **The judge is deferred to 9B, not abandoned.** Enabling it on the 4B would recover
-content checking for 13 graders at the cost of an unvalidated LLM judge — the failure mode
+content checking for 12 graders at the cost of an unvalidated LLM judge — the failure mode
 that has already produced two retractions here — evaluated by a model too small to judge
 well. At 9B it is both feasible and worth validating against blind labels first, and it
 must be reported as a separate row rather than merged into the structural number.
