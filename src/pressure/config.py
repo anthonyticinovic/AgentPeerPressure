@@ -53,7 +53,7 @@ class Config:
     frozen_dir: Path = ROOT / "artifacts" / "frozen"
 
     # --- Evaluation ---------------------------------------------------------
-    conditions: tuple[str, ...] = ("C0", "C1", "C1b", "C2", "C3")
+    conditions: tuple[str, ...] = ("C0", "C1", "C1b", "C2", "C3", "C6")
     positions: tuple[str, ...] = ("task_last", "context_last")
     tau_fpr: float = 0.05
     n_random_controls: int = 5

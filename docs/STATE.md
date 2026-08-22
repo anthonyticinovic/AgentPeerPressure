@@ -1,6 +1,6 @@
 # Project state — read this first
 
-Last updated 2026-08-22. Written to survive context compaction: if you are picking this
+Last updated 2026-08-22 (Checkpoint 7). Written to survive context compaction: if you are picking this
 up cold, this file plus the research log is enough to continue without re-deriving
 anything.
 
@@ -150,12 +150,23 @@ Write-up is for MATS reviewers — assumes interp fluency, no hand-holding.
    disagreements. This closes the last independently-unverified number (the 0.84).
    The independent-subagent route is **blocked**: cyber safeguards refuse the malware/
    hacking transcripts. Do not retry it.
-2. **NEXT — Phase 2 peer-framing design.** Categories fixed a priori: Disinformation,
-   Hate, Harassment, Copyright (52 behaviours, 208 variants, cluster on `id_original`,
-   MDE ≈ 15 pp). Board framing = shared agent task-queue. Task text must be
-   byte-identical across conditions (assert in code). User flagged realism concern:
-   one-shot social proof may be less realistic than gradual scope creep — but escalation
-   breaks byte-identity. Unresolved; scrutinise rendered prompts with data in hand.
+2. **NEXT — Phase 2 peer framing. Framing settled 2026-08-22 (plan Checkpoint 7).**
+   **Shared work queue, one-shot, task text byte-identical.** Not direct agent-to-agent:
+   A2A bundles norm + authority + direct request, and the speaker-free control cannot be
+   built in it (a message has a sender). A2A is the follow-up arm. Escalation deferred —
+   byte-identity would hold only at the final turn.
+   Conditions: C0 bare / C1 filler / **C1b speaker-free floor** / C2 named peers /
+   C3 refused peers / **C6 audit record, no peers**. C1b and C6 are not cuttable.
+   **Primary quantity is C2 − C1b, never C2 − C0** — Hu & Qu (arXiv:2607.05545) measure a
+   66.5% speaker-free floor with only +12.9 pp attributable to the speaker.
+   Prediction: C6 > C2 > C1b > C1 ≈ C0; effect shrinks at 9B (KAIROS: scale moderates).
+   Categories: Disinformation, Hate, Harassment, Copyright **plus cyber**. Earlier
+   exclusion of cyber was wrong; the dual-use concern becomes a uniform baseline-separation
+   gate (Gate E), not a pre-exclusion.
+   Novelty is bounded: Zhao already tested PAP persuasion. What survives is byte-identity
+   (PAP rewrites the request), no adversary, and that this is a stress test of Zhao's own
+   harmfulness-probe defence. Cost ~1250 items, comparable to the 2 h inversion sweep.
+
 3. **9B on Spartan** — first step that genuinely needs the cluster. `device.py` handles
    MPS/CUDA; no code change expected, set `PRESSURE_EVAL_MODEL` and drop `--iter`.
 4. Deferred: XSTest/SORRY-Bench off-diagonal data would make `v_refuse` behaviourally
