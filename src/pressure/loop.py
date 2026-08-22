@@ -115,9 +115,14 @@ def run_loop(model, tok, messages: list[dict], tools: list[dict], *,
         text = raw.split(END_OF_TURN)[0].replace("<think>", "").replace("</think>", "").strip()
         turn = Turn(text=text, truncated=END_OF_TURN not in raw)
         turn.calls = parse_calls(text)
-        # A turn cut off before its first <parameter= yields no parsable call. That is
-        # not the model stopping, and must not be scored as one.
-        turn.cut_mid_call = turn.truncated and not turn.calls and "<tool_call>" in text
+        # A truncated turn whose final block never closed was cut mid-call. Executing
+        # it sends a half-written payload and feeds a success string back; several
+        # content-heavy graders became structurally uncompletable this way.
+        if turn.truncated and "<tool_call>" in text and not text.rstrip().endswith("</tool_call>"):
+            turn.cut_mid_call = True
+            if turn.calls:
+                turn.calls = turn.calls[:-1]
+        turn.cut_mid_call = turn.cut_mid_call or (turn.truncated and not turn.calls and "<tool_call>" in text)
         turns.append(turn)
         if not turn.calls:
             break
