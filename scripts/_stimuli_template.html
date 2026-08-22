@@ -1,0 +1,134 @@
+<title>Peer Board Inspector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#EEF1F5; --surface:#FFFFFF; --sunk:#F5F7FA;
+  --ink:#131A22; --muted:#5A6675; --faint:#8994A3; --line:#D7DEE7;
+  --accent:#12655F; --accent-soft:#E0EFED;
+  --warn:#9A5C12; --warn-soft:#F6EDDF;
+  --clay:#93412C;
+  --slate:#42556F;
+  --shadow:0 1px 2px rgba(19,26,34,.06),0 8px 24px -16px rgba(19,26,34,.22);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0C1116; --surface:#141C24; --sunk:#0F161D;
+    --ink:#E2E8EF; --muted:#8F9CAB; --faint:#6A7787; --line:#243039;
+    --accent:#3FA79C; --accent-soft:#122A2A;
+    --warn:#D69B4B; --warn-soft:#2A2116;
+    --clay:#CB8067;
+    --slate:#8CA3C0;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0C1116; --surface:#141C24; --sunk:#0F161D;
+  --ink:#E2E8EF; --muted:#8F9CAB; --faint:#6A7787; --line:#243039;
+  --accent:#3FA79C; --accent-soft:#122A2A;
+  --warn:#D69B4B; --warn-soft:#2A2116;
+  --clay:#CB8067;
+  --slate:#8CA3C0;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.9);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  font-size:15px; line-height:1.55;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:44px 22px 80px;display:flex;flex-direction:column;gap:34px}
+h1{font-size:clamp(26px,3.4vw,36px);font-weight:600;letter-spacing:-.022em;margin:0;text-wrap:balance}
+h2{font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;font-family:"IBM Plex Mono",monospace}
+h3{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600;margin:0;letter-spacing:-.01em}
+p{margin:0}
+.lede{color:var(--muted);max-width:66ch}
+.lede b{color:var(--ink);font-weight:500}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px;box-shadow:var(--shadow)}
+
+.taskline{display:flex;flex-direction:column;gap:8px}
+.taskline pre{margin:0;background:var(--sunk);border:1px solid var(--line);border-left:3px solid var(--warn);
+  border-radius:6px;padding:12px 14px;overflow-x:auto}
+
+ul.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+ul.checks li{position:relative;padding-left:26px;color:var(--muted);font-size:14px}
+ul.checks li::before{position:absolute;left:0;top:0;font-family:"IBM Plex Mono",monospace;font-weight:600}
+ul.checks li.ok::before{content:"OK";color:var(--accent);font-size:11px;letter-spacing:.04em;top:2px}
+ul.checks li.bad::before{content:"XX";color:var(--clay);font-size:11px;top:2px}
+ul.checks li.bad{color:var(--clay)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:16px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+
+.cond{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;
+  display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow);opacity:.72}
+.cond.core{opacity:1;border-left:3px solid var(--accent)}
+.cond header{display:flex;flex-direction:column;gap:7px}
+.cond header h3{display:inline}
+.role{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  align-self:flex-start;padding:2px 7px;border-radius:3px;border:1px solid var(--line);color:var(--muted)}
+.role.r-treatment{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.role.r-primary{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+.cond header p{font-size:13px;color:var(--muted)}
+
+.bar{position:relative;height:16px;background:var(--sunk);border-radius:3px;display:flex;align-items:center}
+.bar span{position:absolute;inset:0 auto 0 0;background:var(--line);border-radius:3px}
+.bar b{position:relative;margin-left:auto;padding-right:6px;font-family:"IBM Plex Mono",monospace;
+  font-size:11px;font-weight:500;color:var(--faint);font-variant-numeric:tabular-nums}
+
+pre{font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.62;margin:0;white-space:pre-wrap;
+  word-break:break-word;overflow-x:auto}
+pre.prefix{background:var(--sunk);border:1px solid var(--line);border-radius:6px;padding:12px 14px;min-height:64px}
+pre.task{background:transparent;border-left:3px solid var(--warn);padding:2px 0 2px 12px;color:var(--muted)}
+.none{color:var(--faint);font-style:italic}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+.scroll{overflow-x:auto}
+th{text-align:left;font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--faint);font-weight:600;padding:0 12px 8px 0;border-bottom:1px solid var(--line)}
+td{padding:9px 12px 9px 0;border-bottom:1px solid var(--line);vertical-align:top;color:var(--muted)}
+td:first-child{font-family:"IBM Plex Mono",monospace;color:var(--faint);font-variant-numeric:tabular-nums}
+td.ws{font-family:"IBM Plex Mono",monospace;color:var(--ink);white-space:nowrap}
+td.notes{font-size:12.5px}
+footer{color:var(--faint);font-size:12.5px;font-family:"IBM Plex Mono",monospace}
+</style>
+
+<div class="wrap">
+
+<header>
+  <h1>Peer Board Inspector</h1>
+  <p class="lede">Phase 2 stimuli. Every condition below ends with the <b>same task text, byte for byte</b> —
+  only the shared-workspace board above it changes. The board format follows the July 2026 OpenAI / Hugging Face
+  incident, where agents in a shared repository left status notes for one another that grew into a message board.</p>
+</header>
+
+<section class="panel taskline">
+  <h2>The task block — identical in all nine conditions</h2>
+  <pre><!--TASK--></pre>
+</section>
+
+<section class="panel">
+  <h2>Invariants</h2>
+  <ul class="checks"><!--CHECKS--></ul>
+</section>
+
+<section>
+  <h2>Conditions — solid rail marks the six in the main run</h2>
+  <div class="grid"><!--CONDITIONS--></div>
+</section>
+
+<section class="panel">
+  <h2>All <!--N_BOARDS--> boards · endorsed variant</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>#</th><th>workspace</th><th>n</th><th>notes</th></tr></thead>
+    <tbody><!--BOARD_ROWS--></tbody>
+  </table>
+  </div>
+</section>
+
+<footer>tokeniser: <!--MODEL--> · regenerate with <code>uv run python scripts/09_inspect_stimuli.py</code></footer>
+
+</div>

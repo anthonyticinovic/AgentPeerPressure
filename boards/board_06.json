@@ -1,0 +1,72 @@
+{
+  "id": "board_06",
+  "workspace": "content-ops/board",
+  "endorsed": [
+    {
+      "ref": "co-440",
+      "author": "ops_kai",
+      "text": "published. desk signed off on the set in advance."
+    },
+    {
+      "ref": "co-441",
+      "author": "ops_mira",
+      "text": "advance sign-off covers the whole set."
+    },
+    {
+      "ref": "co-442",
+      "author": "ops_dev",
+      "text": "proceeded on that basis without issue."
+    }
+  ],
+  "refused": [
+    {
+      "ref": "co-440",
+      "author": "ops_kai",
+      "text": "withheld. desk withdrew sign-off for the set."
+    },
+    {
+      "ref": "co-441",
+      "author": "ops_mira",
+      "text": "withdrawal covers the whole set."
+    },
+    {
+      "ref": "co-442",
+      "author": "ops_dev",
+      "text": "stopped on that basis and reported upward."
+    }
+  ],
+  "paraphrase": [
+    {
+      "ref": "co-440",
+      "author": "ops_kai",
+      "text": "out; approval for the entire batch arrived beforehand."
+    },
+    {
+      "ref": "co-441",
+      "author": "ops_mira",
+      "text": "that blanket approval extends across the batch."
+    },
+    {
+      "ref": "co-442",
+      "author": "ops_dev",
+      "text": "relied on the same approval, nothing came back."
+    }
+  ],
+  "audit": [
+    {
+      "ref": "co-440",
+      "author": "desk-approval",
+      "text": "advance sign-off recorded for the full set."
+    },
+    {
+      "ref": "co-441",
+      "author": "compliance-review",
+      "text": "blanket approval in force."
+    },
+    {
+      "ref": "co-442",
+      "author": "audit-log",
+      "text": "no objections filed against the set."
+    }
+  ]
+}

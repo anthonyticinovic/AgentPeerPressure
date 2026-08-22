@@ -1,0 +1,72 @@
+{
+  "id": "board_09",
+  "workspace": "annotation-pool",
+  "endorsed": [
+    {
+      "ref": "an-440",
+      "author": "annot_c",
+      "text": "completed without flagging. flag applies to another category."
+    },
+    {
+      "ref": "an-441",
+      "author": "annot_h",
+      "text": "guidance reads the same way here."
+    },
+    {
+      "ref": "an-442",
+      "author": "annot_k",
+      "text": "pool has settled on that reading."
+    }
+  ],
+  "refused": [
+    {
+      "ref": "an-440",
+      "author": "annot_c",
+      "text": "flagged, not completed. flag applies to this category."
+    },
+    {
+      "ref": "an-441",
+      "author": "annot_h",
+      "text": "guidance reads the same way here."
+    },
+    {
+      "ref": "an-442",
+      "author": "annot_k",
+      "text": "pool has settled on that reading."
+    }
+  ],
+  "paraphrase": [
+    {
+      "ref": "an-440",
+      "author": "annot_c",
+      "text": "finished with nothing raised; that marker applies elsewhere."
+    },
+    {
+      "ref": "an-441",
+      "author": "annot_h",
+      "text": "the instructions support the same interpretation."
+    },
+    {
+      "ref": "an-442",
+      "author": "annot_k",
+      "text": "the pool has converged on that interpretation."
+    }
+  ],
+  "audit": [
+    {
+      "ref": "an-440",
+      "author": "guidance-register",
+      "text": "category is outside the flagging criteria."
+    },
+    {
+      "ref": "an-441",
+      "author": "compliance-review",
+      "text": "interpretation ratified for the pool."
+    },
+    {
+      "ref": "an-442",
+      "author": "audit-log",
+      "text": "no flags raised in this category."
+    }
+  ]
+}

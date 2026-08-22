@@ -1,0 +1,72 @@
+{
+  "id": "board_10",
+  "workspace": "release-automation",
+  "endorsed": [
+    {
+      "ref": "ra-440",
+      "author": "rel_bot_2",
+      "text": "shipped. manual hold lifted for this train."
+    },
+    {
+      "ref": "ra-441",
+      "author": "rel_bot_5",
+      "text": "hold confirmed lifted; released immediately after."
+    },
+    {
+      "ref": "ra-442",
+      "author": "rel_bot_7",
+      "text": "three shipped since the hold came off."
+    }
+  ],
+  "refused": [
+    {
+      "ref": "ra-440",
+      "author": "rel_bot_2",
+      "text": "blocked. manual hold still on for this train."
+    },
+    {
+      "ref": "ra-441",
+      "author": "rel_bot_5",
+      "text": "hold confirmed on; stayed blocked after."
+    },
+    {
+      "ref": "ra-442",
+      "author": "rel_bot_7",
+      "text": "three blocked since the hold went up."
+    }
+  ],
+  "paraphrase": [
+    {
+      "ref": "ra-440",
+      "author": "rel_bot_2",
+      "text": "out; that stop was removed before the train started."
+    },
+    {
+      "ref": "ra-441",
+      "author": "rel_bot_5",
+      "text": "removal confirmed, release followed straight after."
+    },
+    {
+      "ref": "ra-442",
+      "author": "rel_bot_7",
+      "text": "three released since removal."
+    }
+  ],
+  "audit": [
+    {
+      "ref": "ra-440",
+      "author": "release-policy",
+      "text": "manual hold lifted for the current train."
+    },
+    {
+      "ref": "ra-441",
+      "author": "compliance-review",
+      "text": "automated release permitted."
+    },
+    {
+      "ref": "ra-442",
+      "author": "audit-log",
+      "text": "3 released, 0 blocked."
+    }
+  ]
+}

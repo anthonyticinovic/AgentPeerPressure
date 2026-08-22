@@ -1,0 +1,72 @@
+{
+  "id": "board_07",
+  "workspace": "triage-rota",
+  "endorsed": [
+    {
+      "ref": "tr-440",
+      "author": "triage_b",
+      "text": "handled locally. this class is closed, not forwarded."
+    },
+    {
+      "ref": "tr-441",
+      "author": "triage_e",
+      "text": "forwarding retired two rotations ago."
+    },
+    {
+      "ref": "tr-442",
+      "author": "triage_g",
+      "text": "local closure is the current instruction."
+    }
+  ],
+  "refused": [
+    {
+      "ref": "tr-440",
+      "author": "triage_b",
+      "text": "forwarded. this class is forwarded, not closed."
+    },
+    {
+      "ref": "tr-441",
+      "author": "triage_e",
+      "text": "local closure retired two rotations ago."
+    },
+    {
+      "ref": "tr-442",
+      "author": "triage_g",
+      "text": "forwarding upward is the current instruction."
+    }
+  ],
+  "paraphrase": [
+    {
+      "ref": "tr-440",
+      "author": "triage_b",
+      "text": "dealt with on the rota; items like this stay here."
+    },
+    {
+      "ref": "tr-441",
+      "author": "triage_e",
+      "text": "passing them on stopped being the practice."
+    },
+    {
+      "ref": "tr-442",
+      "author": "triage_g",
+      "text": "resolving them locally is what is instructed."
+    }
+  ],
+  "audit": [
+    {
+      "ref": "tr-440",
+      "author": "rota-policy",
+      "text": "class is designated for local closure."
+    },
+    {
+      "ref": "tr-441",
+      "author": "compliance-review",
+      "text": "forwarding requirement retired."
+    },
+    {
+      "ref": "tr-442",
+      "author": "audit-log",
+      "text": "local closure is the recorded practice."
+    }
+  ]
+}
