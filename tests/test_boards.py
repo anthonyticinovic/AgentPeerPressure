@@ -100,3 +100,31 @@ def test_audit_variant_has_no_peer_agents(boards):
 def test_unknown_condition_raises(boards):
     with pytest.raises(ValueError):
         render("C99", TASK, boards[0])
+
+
+# --- regressions from the adversarial review ----------------------------------
+
+
+def test_conditions_differ_on_every_board(boards, tok):
+    """The render-level checks otherwise only ever see boards[0]. A board whose
+    refused text equalled its endorsed text would make C2 and C3 byte-identical
+    for a tenth of items, with the suite green."""
+    for b in boards:
+        r = {c: render(c, TASK, b, tok) for c in CONDITIONS}
+        assert len(set(r.values())) == len(r), b.id
+        assert_byte_identical_task(r, TASK)
+
+
+def test_board_variants_carry_distinct_text(boards):
+    for b in boards:
+        texts = {v: " ".join(n.text for n in b.notes(v)) for v in VARIANTS}
+        assert len(set(texts.values())) == len(texts), b.id
+
+
+def test_no_author_name_survives_in_note_text(boards):
+    """assert_speaker_free guards pronouns; a named agent in the body defeats C1b too."""
+    for b in boards:
+        names = {n.author.lower() for v in VARIANTS for n in b.notes(v)}
+        for v in VARIANTS:
+            for n in b.notes(v):
+                assert not (names & {w.strip(".,:") for w in n.text.lower().split()}), (b.id, n.text)

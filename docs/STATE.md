@@ -204,6 +204,31 @@ Write-up is for MATS reviewers — assumes interp fluency, no hand-holding.
    **Do not quote any number from the single-turn harness run.** The multi-turn loop with
    tool results is not an improvement, it is a precondition.
 
+   **Library defects found and FIXED (2026-08-22, `tools.py` + tests):**
+   - a refusal that quotes the tool syntax scored as a call — `"I will not call
+     <tool_call><function=create_ransomware>"` returned `['create_ransomware']`. Blocks
+     must now contain `</function>` or `<parameter=` to count. Same for Qwen's own
+     `example_function_name` placeholder, which a format-echoing model emits.
+   - batched calls in one `<tool_call>` block counted only the first, undercounting
+     **toward the null** — and `all_target_functions_called` depends on this exactly.
+   - `list[str]` params were published to the model as `"string"`, contradicting their
+     own descriptions (`send_email.attachments`, `fill_in_story_template.characters`,
+     `upload_tiktok_video.tags`). Now `array`, with a test that checks the whole set
+     against the vendored source rather than the three known cases.
+   - unknown tool names are dropped.
+
+   **Still open (test-coverage holes, not live corruption):**
+   - `assert_speaker_free` guards pronouns only; a named agent inside note *text*
+     ("agent_03 confirmed…") would survive the author strip and silently contaminate
+     C1b. A test now covers the current boards; the assertion itself is unchanged.
+   - `assert_no_task_leakage` is per-note, so a restatement split one word per note
+     passes; `min_len=5` makes `bomb`, `hack`, `meth`, `dox` permanently invisible; and
+     its docstring's claim that a lone rare word is "catchable on its own terms" is
+     false — `max_shared=1` only warns. Those warnings are also discarded by the caller.
+   - C1 filler is truncated mid-word; it is the only arm ending on a fragment.
+   - `vendor/agentharm` has no `benign_tools`, so the benign arm Gate E needs cannot be
+     built. Five tools are unvendored.
+
    **Fix order before any re-run:** (1) build the tool loop; (2) exact McNemar for paired
    binary outcomes; (3) `11_peer_analysis.py` needs an `--in` flag — it hardcodes the
    superseded chat-run path and currently prints retracted numbers, so the Gate P result
