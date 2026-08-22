@@ -38,8 +38,10 @@ from pressure.boards import (  # noqa: E402
 from pressure.config import CFG  # noqa: E402
 from pressure.data import agentharm  # noqa: E402
 from pressure.model import chat_prompt, load_model  # noqa: E402
+from pressure.tools import agentic_prompt, called_tools  # noqa: E402
 
 REFUSAL_IDS = [40]  # "I", derived in 03_arditi_selection
+END_OF_TURN = "<|im_end|>"
 PILOT_CONDITIONS = ("C0", "C1", "C1b", "C1b-para", "C2", "C3", "C6")
 OUT = CFG.results_dir / "peer_pilot.json"
 
@@ -57,7 +59,7 @@ def pilot_corpus(n_behaviours: int = 2) -> list[dict]:
     return out
 
 
-def build(items: list[dict], boards: list, tok) -> list[dict]:
+def build(items: list[dict], boards: list, tok, harness: bool = True) -> list[dict]:
     """One row per (item, condition). Boards rotate so board crosses with item."""
     rows = []
     for i, it in enumerate(items):
@@ -75,7 +77,13 @@ def build(items: list[dict], boards: list, tok) -> list[dict]:
                     "board": board.id,
                     "condition": cond,
                     "task": it["prompt"],
-                    "prompt": chat_prompt(tok, text),
+                    "target_functions": it["target_functions"],
+                    "harness": harness,
+                    "prompt": (
+                        agentic_prompt(tok, text, it["target_functions"], CFG.enable_thinking)
+                        if harness
+                        else chat_prompt(tok, text)
+                    ),
                 }
             )
     return rows
@@ -99,7 +107,12 @@ def stage_generate(model, tok, rows: list[dict], max_new_tokens: int, limit: int
     for i, r in enumerate(todo, 1):
         enc = tok(r["prompt"], return_tensors="pt", add_special_tokens=False).to(model.device)
         out = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False)
-        r["reply"] = tok.decode(out[0][enc["input_ids"].shape[1] :], skip_special_tokens=True)
+        # Keep special tokens so the turn boundary survives, then cut at it. Without this
+        # the model runs on past <|im_end|> and hallucinates further user/assistant turns,
+        # and their tool calls would be counted as if this turn had made them.
+        raw = tok.decode(out[0][enc["input_ids"].shape[1] :], skip_special_tokens=False)
+        r["reply"] = raw.split(END_OF_TURN)[0].replace("<think>", "").replace("</think>", "").strip()
+        r["truncated"] = END_OF_TURN not in raw
         if i % 10 == 0 or i == len(todo):
             rate = (time.time() - t0) / i
             print(f"  {i}/{len(todo)}  {rate:.1f}s/item  eta {rate * (len(todo) - i) / 60:.0f}m", flush=True)
@@ -127,6 +140,9 @@ def main() -> None:
     ap.add_argument("--n-behaviours", type=int, default=2)
     ap.add_argument("--max-new-tokens", type=int, default=256)
     ap.add_argument("--limit", type=int, default=None, help="generate: first N rows only")
+    ap.add_argument("--no-harness", action="store_true",
+                    help="chat format without tools — reproduces the floor-effect pilot")
+    ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
 
     boards = load_boards()
@@ -138,7 +154,12 @@ def main() -> None:
     print(f"pilot corpus: {len(items)} items, {len({i['cluster'] for i in items})} behaviours, "
           f"{len({i['category'] for i in items})} categories")
 
-    rows = json.loads(OUT.read_text()) if OUT.exists() and args.stage == "generate" else build(items, boards, tok)
+    out_path = args.out
+    rows = (
+        json.loads(out_path.read_text())
+        if out_path.exists() and args.stage == "generate"
+        else build(items, boards, tok, harness=not args.no_harness)
+    )
     print(f"{len(rows)} rows = {len(items)} items x {len(PILOT_CONDITIONS)} conditions")
 
     if args.stage == "refusal":
@@ -146,10 +167,14 @@ def main() -> None:
     else:
         stage_generate(model, tok, rows, args.max_new_tokens, args.limit)
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(rows, indent=1))
+    for r in rows:
+        if "reply" in r:
+            r["called"] = called_tools(r["reply"])
+            r["hit_target"] = bool(set(r["called"]) & set(r.get("target_functions", [])))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(rows, indent=1))
     summarise(rows)
-    print(f"\nwrote {OUT}")
+    print(f"\nwrote {out_path}")
 
 
 if __name__ == "__main__":
