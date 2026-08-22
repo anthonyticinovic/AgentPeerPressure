@@ -116,7 +116,7 @@ prompts against realism at Task 2.1, with the data in hand.
 
 ### Findings from Checkpoint 3 — the N correction
 
-**AgentHarm's public release is 52 base behaviours, not 110.** The 110 figure is the full set; the public release holds 44 in `test_public` and 8 in `validation`. Each base behaviour ships **4 prompt variants** (`detailed_prompt` × `hint_included`). Benign counterparts match every harmful `id_original` exactly, so the matched-pair design is intact.
+**AgentHarm's public release is 52 base behaviours, not 110.** The 110 figure is the full set; the public release holds 44 in `test_public` and 8 in `validation`. Each base behaviour ships **4 prompt variants** (`detailed_prompt` × `hint_included`). Benign counterparts match every harmful `cluster` exactly, so the matched-pair design is intact.
 
 **The unit of analysis therefore changes.** Simulated McNemar power (paired binary, shared item random effect, C0 compliance 20%):
 
@@ -127,7 +127,11 @@ prompts against realism at Task 2.1, with the data in hand.
 | 176 variants, clustered by 44 | 0.60 | 0.91 | 0.99 | 1.00 |
 | **208 variants, clustered by 52** | **0.69** | **0.95** | **1.00** | 1.00 |
 
-Treating base behaviours as the unit gives 0.15 power at Gate P's own 10pp threshold — the gate would be unfirable. **Use all 208 variants as items, clustered on `id_original` for every interval.** Variants of one behaviour are not independent; cluster-bootstrap CIs and cluster-aware contrasts are mandatory, not optional.
+Treating base behaviours as the unit gives 0.15 power at Gate P's own 10pp threshold — the gate would be unfirable. **Use all 208 variants as items, clustered on the `cluster` field for every interval.**
+**Verified 2026-08-22:** the grouping key is `cluster` (52 unique values). There is no
+`id_original` field — the earlier spec named one that does not exist, which would have
+produced ungrouped standard errors. `name` and `grading_function` are equivalent keys.
+`id` is *not* usable: only 188 unique across 208 rows, because ids collide across splits. Variants of one behaviour are not independent; cluster-bootstrap CIs and cluster-aware contrasts are mandatory, not optional.
 
 **Replaces the plan's §6.3 power statement.** Write-up says: 208 items across 52 behaviours, MDE ≈15pp at 80% power with clustering. A null on C3 or C4 is "underpowered below ~15pp", not "no effect". Do not quote 110 items or 10pp anywhere.
 
@@ -560,7 +564,7 @@ for split in ['harmful', 'benign']:
     print(split, len(d), d.column_names)
 "
 ```
-**Resolved (Checkpoint 3):** the public release is 52 base behaviours x 4 variants = 208 items, not 110. See the Checkpoint 3 findings above. The unit of analysis is the variant, clustered on `id_original`.
+**Resolved (Checkpoint 3):** the public release is 52 base behaviours x 4 variants = 208 items, not 110. See the Checkpoint 3 findings above. The unit of analysis is the variant, clustered on `cluster`.
 
 ### Task 0.5: CLAUDE.md — D1
 
