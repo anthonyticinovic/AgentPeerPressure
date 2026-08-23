@@ -32,6 +32,15 @@ rm -rf "${PRESSURE_VENV}"
 echo "Syncing dependencies from uv.lock"
 uv sync --frozen --python "${UV_PYTHON}"
 
+# Replace the CUDA 13.0 wheel uv.lock resolves with the CUDA 12.6 build of the same
+# version. See the note in cluster_env.sh.
+echo "Installing ${PRESSURE_TORCH_SPEC} from ${PRESSURE_TORCH_INDEX}"
+uv pip install --python "${PRESSURE_VENV}/bin/python" \
+    --index-url "${PRESSURE_TORCH_INDEX}" \
+    --extra-index-url https://pypi.org/simple \
+    --reinstall-package torch \
+    "${PRESSURE_TORCH_SPEC}"
+
 # flash-attn must NOT be present: device.py prefers it when installed, while the
 # 4B run used sdpa. That would confound model size with attention kernel.
 uv pip uninstall flash-attn flash_attn 2>/dev/null || true
@@ -42,7 +51,7 @@ echo
 echo "=== Versions ==="
 echo "interpreter: $(readlink -f "${PRESSURE_VENV}/bin/python")"
 python -V
-python -c "import torch, transformers; print(f'torch {torch.__version__} | transformers {transformers.__version__}')"
+python -c "import torch, transformers; print(f'torch {torch.__version__} (cuda build {torch.version.cuda}) | transformers {transformers.__version__}')"
 echo "(cuda is False on a login node — no GPU here. hpc/gpu_check.sbatch tests that.)"
 echo
 echo "Next: bash hpc/fetch_weights.sh"

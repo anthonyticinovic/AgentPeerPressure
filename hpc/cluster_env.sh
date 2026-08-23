@@ -32,6 +32,14 @@
 # node mounts.
 : "${UV_PYTHON_PREFERENCE:=only-managed}"
 : "${UV_PYTHON:=3.12}"
+
+# Spartan's driver is 570.211.01 / CUDA 12.8. PyPI's torch 2.13.0 is built against
+# CUDA 13.0 and refuses to initialise on it: torch.cuda.is_available() returns
+# False and everything silently runs on CPU. cu126 is the newest build of the same
+# torch version the lock pins, and a 12.6 build runs on any 12.x driver >= 12.6, so
+# only the CUDA runtime differs from the laptop — not the torch version.
+: "${PRESSURE_TORCH_INDEX:=https://download.pytorch.org/whl/cu126}"
+: "${PRESSURE_TORCH_SPEC:=torch==2.13.0+cu126}"
 : "${UV_CACHE_DIR:=$PRESSURE_BASE/uv-cache}"
 : "${UV_PYTHON_INSTALL_DIR:=$PRESSURE_BASE/uv-python}"
 : "${PRESSURE_VENV:=$PRESSURE_PROJECT_DIR/.venv}"
