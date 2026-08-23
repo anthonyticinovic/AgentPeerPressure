@@ -9,18 +9,21 @@
 # cannot be read from here, because SLURM parses them before any shell runs.
 # Those must be edited per cluster. See hpc/README.md.
 
-# Repository checkout. Also where the scripts cd to before running Python.
-: "${PRESSURE_PROJECT_DIR:=$HOME/AgentPeerPressure}"
+# Project storage, not home: home is capped at 50 GB and the two Qwen
+# checkpoints alone are ~26 GB.
+: "${PRESSURE_BASE:=/data/gpfs/projects/COMP90055/aticinovic}"
+: "${PRESSURE_PROJECT_DIR:=$PRESSURE_BASE/AgentPeerPressure}"
+: "${PRESSURE_VENV:=$PRESSURE_BASE/venv-pressure}"
+: "${HF_HOME:=$PRESSURE_BASE/hf}"
 
-# Virtualenv holding the dependencies. hpc/setup_env.sh creates it.
-: "${PRESSURE_VENV:=$PRESSURE_PROJECT_DIR/.venv}"
-
-# Environment modules to load, in order.
-: "${PRESSURE_MODULES:=GCCcore/11.3.0 Python/3.11.3 CUDA}"
-
-# Weight cache. Must live somewhere compute nodes can read and login nodes can
-# write — home is usually both, scratch is usually faster.
-: "${HF_HOME:=$PRESSURE_PROJECT_DIR/.hf}"
+# Anaconda only. There is no Python/3.11.x module on Spartan any more — the one
+# the previous project used has been removed, which is why every venv in that home
+# directory died with "libpython3.11.so.1.0: cannot open shared object file". The
+# venv below is built from this interpreter, so this module must be loaded before
+# activating it, and the version must stay pinned.
+#
+# No CUDA module: the pip torch wheel bundles its own CUDA runtime.
+: "${PRESSURE_MODULES:=Anaconda3/2024.02-1}"
 
 pressure_setup_environment() {
     if command -v module >/dev/null 2>&1; then
@@ -46,7 +49,7 @@ pressure_setup_environment() {
     cd "${PRESSURE_PROJECT_DIR}" || exit 1
 
     export HF_HOME
-    # Compute nodes have no outbound network. Without this, a cache miss hangs on a
+    # Compute nodes have no outbound network. Without this a cache miss hangs on a
     # connection timeout instead of failing with the name of the missing file.
     export HF_HUB_OFFLINE=1
     export TOKENIZERS_PARALLELISM=false

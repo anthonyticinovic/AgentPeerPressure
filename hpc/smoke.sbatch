@@ -9,7 +9,8 @@
 # repository root:
 #   mkdir -p logs/slurm && sbatch hpc/smoke.sbatch
 #SBATCH --job-name=gatep_smoke
-#SBATCH -p gpu-a100
+#SBATCH -p gpu-h100
+#SBATCH --account=comp90055
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -19,7 +20,7 @@
 #SBATCH --output=logs/slurm/%x_%j.out
 #SBATCH --error=logs/slurm/%x_%j.err
 
-source "${PRESSURE_PROJECT_DIR:-$HOME/AgentPeerPressure}/hpc/cluster_env.sh"
+source "${PRESSURE_PROJECT_DIR:-/data/gpfs/projects/COMP90055/aticinovic/AgentPeerPressure}/hpc/cluster_env.sh"
 pressure_setup_environment
 
 nvidia-smi

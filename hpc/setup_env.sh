@@ -1,6 +1,7 @@
 #!/bin/bash
-# One-time setup, on a LOGIN node — it needs outbound network, which compute
-# nodes do not have. Creates the virtualenv and pre-fetches the weights.
+# One-time environment build, on a LOGIN node — it needs outbound network, which
+# compute nodes do not have. Fast (a few minutes). Weights are a separate step:
+# see hpc/fetch_weights.sh, which is slow and can run in the background.
 #
 #   bash hpc/setup_env.sh
 
@@ -13,27 +14,23 @@ if command -v module >/dev/null 2>&1; then
 fi
 cd "${PRESSURE_PROJECT_DIR}"
 
+echo "Building venv at ${PRESSURE_VENV} from $(command -v python)"
 python -m venv "${PRESSURE_VENV}"
 # shellcheck disable=SC1091
 source "${PRESSURE_VENV}/bin/activate"
-pip install --upgrade pip
-pip install -e .
+python -m pip install --upgrade pip
+python -m pip install -e .
 
-# flash-attn must NOT be installed: device.py would then select flash_attention_2
-# while the 4B run used sdpa, confounding model size with attention kernel.
-pip uninstall -y flash_attn flash-attn 2>/dev/null || true
-
-export HF_HOME
-mkdir -p "${HF_HOME}"
-python - <<'PY'
-from huggingface_hub import snapshot_download
-for repo in ("Qwen/Qwen3.5-9B", "Qwen/Qwen3.5-4B"):
-    print(f"fetching {repo}")
-    snapshot_download(repo, allow_patterns=["*.json", "*.safetensors", "*.txt", "*.model"])
-PY
+# flash-attn must NOT be installed: device.py prefers it when present, while the
+# 4B run used sdpa. That would confound model size with attention kernel.
+python -m pip uninstall -y flash_attn flash-attn 2>/dev/null || true
 
 echo
-echo "Verifying the environment checks that do not need a GPU:"
+echo "=== Versions ==="
+python -c "import torch, transformers; print(f'torch {torch.__version__} | transformers {transformers.__version__}')"
+echo "(cuda is False here — login nodes have no GPU. hpc/gpu_check.sbatch tests that.)"
+echo
+echo "=== Environment checks that do not need a GPU ==="
 python scripts/17_cluster_preflight.py --skip-model || true
 echo
-echo "Done. Submit with: sbatch hpc/smoke.sbatch"
+echo "Next: bash hpc/fetch_weights.sh   (~26 GB, slow)"
