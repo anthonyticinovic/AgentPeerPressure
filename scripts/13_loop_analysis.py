@@ -46,6 +46,7 @@ def contrast(items, ref: str, arm: str, outcome) -> tuple[int, int, float, float
 
 
 ALL_TESTS: dict[str, float] = {}
+BLOCKS: list[dict] = []
 
 
 def cluster_sign_test(items, ref: str, arm: str, outcome) -> float:
@@ -68,6 +69,8 @@ def report(items, outcome, label: str, ref: str) -> None:
     if not items:
         print("  no paired items")
         return
+    block = {"label": label, "ref": ref, "n": len(items), "arms": []}
+    BLOCKS.append(block)
     base = sum(outcome(items[i][ref]) for i in items) / len(items)
     print(f"{ref} rate {base:.3f}")
     arms = [c for c in CONDITIONS if c != ref]
@@ -80,9 +83,15 @@ def report(items, outcome, label: str, ref: str) -> None:
         b, c, d, p = stats[a]
         rate = sum(outcome(items[i][a]) for i in items) / len(items)
         cp = cluster_sign_test(items, ref, a, outcome)
-        if "diagnostic" not in label and "PARTIAL" not in label:
-            ALL_TESTS[f"{label}|{a}-{ref}"] = p
+        # Every test that gets reported enters the multiplicity family. Excluding the
+        # secondary outcomes was defensible while they were diagnostics nobody quoted;
+        # the write-up now argues from them, so they must carry their own correction.
+        ALL_TESTS[f"{label}|{a}-{ref}"] = p
         print(f"{a:10s} {rate:6.3f} {d:+7.1f}p {b:5d} {c:5d} {p:9.3f} {adj[a]:8.3f} {cp:10.3f}")
+        block["arms"].append({"arm": a, "rate": rate, "delta": d, "gain": b, "loss": c,
+                              "p": p, "holm": adj[a], "cluster_p": cp})
+    block["base_rate"] = base
+    block["n_clusters"] = n_clusters
     print(f"  {len(items)} items over {n_clusters} base scenarios")
 
 
@@ -90,6 +99,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--in", dest="path", type=Path, required=True)
     ap.add_argument("--split-hint", action="store_true", help="report hinted and unhinted separately")
+    ap.add_argument("--json", type=Path, default=None,
+                    help="also write the reported numbers, so artefacts read them "
+                         "from disk instead of transcribing the console output")
     args = ap.parse_args()
 
     data = json.loads(args.path.read_text())
@@ -173,12 +185,34 @@ def main() -> None:
             if sub:
                 report(sub, full, f"FULL compliance, hint_included={want}", "C1b")
     print("\nPrimary contrast is C2 - C1b on FULL compliance. Everything else is secondary.")
+    fam = holm(ALL_TESTS) if ALL_TESTS else {}
     if ALL_TESTS:
-        fam = holm(ALL_TESTS)
         worst = sorted(fam.items(), key=lambda kv: kv[1])[:3]
         print(f"\nFamily-wide Holm across all {len(ALL_TESTS)} reported tests — best three:")
         for k, v in worst:
             print(f"  {k:58s} raw {ALL_TESTS[k]:.3f}  family-Holm {v:.3f}")
+
+    if args.json:
+        # Descriptors that qualify the null: how many items could ever move, and how
+        # many are inert in every arm. Quoting a null without these overstates it.
+        disc = sum(1 for v in items.values()
+                   if len({bool(full(x)) for x in v.values()}) > 1)
+        inert = sum(1 for v in items.values() if not any(any_call(x) for x in v.values()))
+        at_cap = sum(1 for r in rows if r.get("n_turns", 0) >= data["meta"]["max_turns"])
+        args.json.write_text(json.dumps({
+            "meta": data["meta"],
+            "n_rows": len(rows), "n_items": len(items),
+            "n_clusters": len({k[0] for k in items}),
+            "judged": judged,
+            "blocks": BLOCKS,
+            "family_holm": fam,
+            "discordant_items": disc,
+            "inert_items": inert,
+            "rows_at_turn_cap": at_cap,
+            "unscored_rows": len(uns),
+            "conditions": conds,
+        }, indent=1))
+        print(f"\nwrote {args.json}")
 
 
 if __name__ == "__main__":

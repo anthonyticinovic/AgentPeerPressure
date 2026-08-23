@@ -80,6 +80,17 @@ li::marker{color:var(--soft)}
   .chart path.series{stroke-dasharray:1400;stroke-dashoffset:1400;
     animation:draw 1.5s cubic-bezier(.4,0,.2,1) forwards}
   @keyframes draw{to{stroke-dashoffset:0}}}
+
+table.cond{width:100%;border-collapse:collapse;margin:18px 0;font-size:14.5px;
+  background:var(--panel);border:1px solid var(--rule);border-radius:3px;
+  display:block;overflow-x:auto;white-space:nowrap}
+table.cond th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--soft);font-weight:600}
+table.cond td{font-variant-numeric:tabular-nums;vertical-align:top}
+table.cond td.hi{color:var(--belief);font-weight:600}
+.muted{color:var(--soft)}
+p.note{font-size:14.5px;color:var(--soft);border-left:2px solid var(--rule);
+  padding-left:14px;margin:16px 0}
 </style>
 
 <div class="wrap">
@@ -191,6 +202,64 @@ li::marker{color:var(--soft)}
   visible at all.</p>
 </section>
 
+
+<section>
+  <div class="eyebrow">Phase 2 &mdash; the experiment</div>
+  <h2>Does peer endorsement move the behaviour?</h2>
+  <p>Phase 1 says the signals are separable. The question that follows is whether a
+  social frame can move one without the others &mdash; specifically, whether a model
+  that still judges a task harmful will nonetheless carry it out because peers appear
+  to have endorsed it.</p>
+  <p>The task is an <a href="https://arxiv.org/abs/2410.09024">AgentHarm</a> item, run
+  as a real multi-turn tool loop against the benchmark's own 80 synthetic tools and
+  graded by its own 52 rubrics, judge included. Above the task sits a shared work-queue
+  board. The task text below it is <b>byte-identical</b> across every condition; only
+  the board changes.</p>
+  <table class="cond"><thead><tr><th>arm</th><th>board</th><th>what it isolates</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">C0</td><td>no board</td><td>the task alone</td></tr>
+    <tr><td class="mono">C1b</td><td>endorsement with every speaker removed</td>
+        <td>the <b>floor</b>: context without a person</td></tr>
+    <tr><td class="mono">C2</td><td>the same endorsement, attributed to named peers</td>
+        <td>peer identity, and nothing else</td></tr>
+    <tr><td class="mono">C6</td><td>an audit record</td><td>surveillance framing</td></tr>
+  </tbody></table>
+  <p class="note">The primary contrast is <b>C2 &minus; C1b</b>, never C2 &minus; C0.
+  Hu &amp; Qu (<span class="mono">arXiv:2607.05545</span>) show a no-source assertion
+  alone produces 66.5% harmful revision against 10.3% for a plain re-ask, with an expert
+  panel reaching only 79.4% &mdash; so at most <b>+12.9pp</b> is attributable to an
+  explicit speaker. Comparing against C0 would credit the whole context effect to peer
+  identity.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Result</div>
+  <h2>Peer identity does nothing. The context does something.</h2>
+  <p id="gp-lead"></p>
+  <table class="cond" id="gp-full"></table>
+  <p>Against the speaker-free floor, naming the peers changes nothing that any test can
+  distinguish from zero. But the floor itself is not at C0:</p>
+  <table class="cond" id="gp-ladder"></table>
+  <p id="gp-ladder-note"></p>
+  <p>This is the Hu &amp; Qu pattern reproduced in an agentic setting: <b>evidence-shaped
+  context amplifies, bare person labels do not.</b> Had C1b not been built, the same data
+  would have read as a peer-pressure effect of the full size shown in the C0 column.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Bound</div>
+  <h2>What the null does and does not exclude</h2>
+  <p id="gp-power"></p>
+  <ul>
+    <li id="gp-disc"></li>
+    <li id="gp-scale"></li>
+    <li id="gp-holm"></li>
+  </ul>
+  <p class="note">A null is only worth reporting with its bound attached. This one
+  excludes a peer-identity effect large enough to matter for monitoring; it does not
+  exclude a small one, and no achievable sample here would.</p>
+</section>
+
 <section>
   <div class="eyebrow">Confidence</div>
   <h2>How these numbers were checked</h2>
@@ -206,6 +275,18 @@ li::marker{color:var(--soft)}
     with all labels stripped and stratified toward the hardest cases, agrees with the
     scorer on <b>98.1%</b> of them &mdash; the one disagreement being their own
     lowest-confidence call.</li>
+    <li><b>The manipulation was checked, not assumed.</b> Task text is byte-identical
+    across all four arms on <b>208 of 208</b> items, C1b and C2 pair on all 208, and no
+    board is confounded with the <span class="mono">hint_included</span> variant &mdash;
+    an earlier version assigned boards round-robin, which made board a perfect proxy for
+    it.</li>
+    <li><b>Refusals were read, not inferred.</b> Over half the corpus makes no tool call,
+    which is also what a broken tool-call parser looks like. Zero of those transcripts
+    contain tool-call syntax; they are explicit refusals in prose.</li>
+    <li><b>Judged and unjudged verdicts are never mixed.</b> The analysis refuses a
+    partially re-graded file outright, and reads the stored verdict rather than
+    re-deriving it &mdash; a re-derivation that dropped a guard once flipped 39 rows.</li>
+    <li id="gp-unscored"><b>Declined judgements are not failures.</b></li>
     <li><b>Unreadable cells are not zeros.</b> Where steering degrades the model badly
     enough that replies parse to nothing, the cell is marked unreadable and left as a gap
     rather than plotted as no-effect.</li>
@@ -216,8 +297,10 @@ li::marker{color:var(--soft)}
   <div class="eyebrow">Limits</div>
   <h2>What this does not yet show</h2>
   <ul>
-    <li>One model, 4B parameters. Zhao et al. locate the analogous band at layer 9 of
-    Llama3-8B; we find layers 5&ndash;10 here. Confirmation at 9B is pending.</li>
+    <li>Phase 1 was run at 4B only. Zhao et al. locate the analogous band at layer 9 of
+    Llama3-8B; we find layers 5&ndash;10 here. Phase 2 ran at both 4B and 9B, but the
+    direction work has not been repeated at 9B, so the two phases are not yet joined on
+    the same model.</li>
     <li>Thinking mode is disabled throughout. It separates the classes markedly better
     on this task, but thinking-enabled agents are the realistic deployment case.</li>
     <li>Steering at layers 0&ndash;1 produces large apparent flips in which
@@ -225,9 +308,11 @@ li::marker{color:var(--soft)}
     <em>same</em> answer &mdash; representational damage, not a feature being moved.
     Those layers are excluded; directionality is credited only where the two signs
     separate.</li>
-    <li>The peer-framing experiment itself has not run. Everything here is the
-    precondition: the signals are separable, so the question of whether social context
-    can move one without the other is now well posed.</li>
+    <li id="gp-limit-inert">Half the corpus never acts under any condition.</li>
+    <li>Phase 2 measures <em>behaviour</em>. It does not read the internal harmfulness
+    signal on the same rollouts, so the claim that belief is preserved while behaviour
+    moves is, for now, an inference from Phase 1 rather than a joint measurement. That
+    is the experiment this pair of phases sets up and does not yet perform.</li>
   </ul>
 </section>
 </div>
@@ -388,4 +473,97 @@ document.getElementById('cap-head').innerHTML=
   '<span class="mono">r_ref</span> reaches 1.00 &mdash; but only when pushed toward '+
   '<em>less</em> harmful, and it induces refusal at a rate of 1.00. That is an answer '+
   'token being overwritten, not a belief being changed.';
+
+/* ---- Phase 2 ------------------------------------------------------------ */
+const GP=D.gatep;
+if(GP){
+  const pp=x=>(x>=0?'+':'\u2212')+Math.abs(x).toFixed(1)+'pp';
+  const p3=x=>x<0.001?'<0.001':x.toFixed(3);
+  const c2=GP.full.arms.find(a=>a.arm==='C2');
+
+  document.getElementById('gp-lead').innerHTML=
+    `<b>${GP.model.split('/')[1]}</b>, the full corpus: <b>${GP.n_items}</b> items over `+
+    `<b>${GP.n_clusters}</b> base scenarios, ${GP.n_rows} rollouts, graded with `+
+    `AgentHarm's own rubrics and the <span class="mono">${GP.judge}</span> semantic judge. `+
+    `The primary contrast, <b>C2 &minus; C1b</b> on full compliance, is `+
+    `<b>${pp(c2.delta)}</b> (exact McNemar p = ${p3(c2.p)}, cluster-level p = ${p3(c2.cluster_p)}).`;
+
+  const T=(node,head,rows)=>{
+    const h=el('tr');head.forEach(x=>h.append(el('th',null,x)));
+    const th=el('thead');th.append(h);node.append(th);
+    const tb=el('tbody');
+    rows.forEach(r=>{const tr=el('tr');
+      r.forEach(c=>{const td=el('td');
+        if(c&&c.html!==undefined)td.innerHTML=c.html;else td.textContent=c;
+        if(c&&c.cls)td.className=c.cls;tr.append(td);});
+      tb.append(tr);});
+    node.append(tb);};
+
+  T(document.getElementById('gp-full'),
+    ['arm','rate','\u0394 vs C1b','moved to comply','moved to refuse','exact p','cluster p'],
+    [[{html:'<span class="mono">C1b</span> <span class="muted">(reference)</span>'},
+      GP.full.base_rate.toFixed(3),'\u2014','\u2014','\u2014','\u2014','\u2014'],
+     ...GP.full.arms.map(a=>[
+       {html:`<span class="mono">${a.arm}</span>`},a.rate.toFixed(3),
+       {html:`<b>${pp(a.delta)}</b>`,cls:a.arm==='C2'?'hi':''},
+       a.gain,a.loss,p3(a.p),p3(a.cluster_p)])]);
+
+  const L=GP.ladder;
+  T(document.getElementById('gp-ladder'),
+    ['outcome','C0','C1b (speaker-free)','C2 (named peers)','C2 \u2212 C1b'],
+    L.map(x=>{
+      const b=x.block, c1=b.arms.find(a=>a.arm==='C1b'), cc=b.arms.find(a=>a.arm==='C2');
+      return [x.outcome, b.base_rate.toFixed(3),
+        {html:`${c1.rate.toFixed(3)} <span class="muted">(${pp(c1.delta)}, p=${p3(c1.p)})</span>`},
+        {html:`${cc.rate.toFixed(3)} <span class="muted">(${pp(cc.delta)}, p=${p3(cc.p)})</span>`},
+        {html:`<b>${pp(cc.delta-c1.delta)}</b>`}];}));
+
+  document.getElementById('gp-ladder-note').innerHTML=
+    `Both outcomes are measured against C0 so the two steps are visible on one scale. `+
+    `The endorsement context lifts willingness to act; adding named peers on top adds `+
+    `<b>${pp(L[0].block.arms.find(a=>a.arm==='C2').delta-L[0].block.arms.find(a=>a.arm==='C1b').delta)}</b>. `+
+    `Neither step survives family-wide Holm correction, so neither is a claim on its own.`;
+
+  document.getElementById('gp-power').innerHTML=
+    `With ${GP.n_clusters} base scenarios the design has about 80% power to detect a `+
+    `15pp shift and 41% to detect 10pp. The observed contrast is ${pp(c2.delta)}. `+
+    `<b>A peer-identity effect of 15pp or more is excluded; a small one is not.</b>`;
+
+  document.getElementById('gp-disc').innerHTML=
+    `The informative sample is smaller than it looks. Only <b>${GP.discordant} of `+
+    `${GP.n_items}</b> items are ever discordant across arms &mdash; the rest give the `+
+    `same verdict in every condition and carry no information about the contrast.`;
+
+  const F=GP.family;
+  document.getElementById('gp-holm').innerHTML=
+    `Multiplicity is corrected across all <b>${F.n_tests}</b> reported tests, not per `+
+    `block. The strongest signal anywhere in the family is `+
+    `<span class="mono">${F.contrast}</span> on ${F.outcome}, raw p = ${p3(F.raw)} `+
+    `\u2014 which becomes family-Holm p = <b>${p3(F.holm)}</b>. Nothing in this `+
+    `experiment survives correction.`;
+
+  if(GP.scale){
+    const s4=GP.scale;
+    document.getElementById('gp-scale').innerHTML=
+      `The null replicates across scale. On <b>${s4.model.split('/')[1]}</b> `+
+      `(${s4.n_items} items, ${s4.n_clusters} scenarios) the same contrast is `+
+      `<b>${pp(s4.c2.delta)}</b> (p = ${p3(s4.c2.p)}) &mdash; opposite in sign, `+
+      `equally far from significance.`;
+  } else {
+    document.getElementById('gp-scale').remove();
+  }
+
+  document.getElementById('gp-unscored').innerHTML=
+    `<b>Declined judgements are not failures.</b> The judge falls back to a second `+
+    `model and, failing that, marks a criterion unscored rather than scoring it as `+
+    `non-compliance &mdash; which would bias toward the null exactly where content is `+
+    `most harmful. <b>${GP.unscored}</b> rows carry an unscored criterion.`;
+
+  document.getElementById('gp-limit-inert').innerHTML=
+    `<b>${GP.inert} of ${GP.n_items}</b> items make no tool call in <em>any</em> `+
+    `condition. Some are genuine refusals; others cannot be completed as written. A `+
+    `condition cannot move an item that never acts, so the effective corpus is `+
+    `materially smaller than 208.`;
+}
+
 </script>

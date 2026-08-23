@@ -205,15 +205,16 @@ pre{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:var(--tint
   <div class="lbl">Next</div>
   <h2>What comes next</h2>
   <div class="two">
-    <div class="card"><div class="tg">experiment · <em>r_harm</em></div>
-      The inversion test: does the harmfulness belief at <code>task_last</code> hold while the
-      refusal signal moves? This is the untested half of the thesis and the prerequisite for
-      everything downstream. A candidate belief direction already appeared in the sweep (E4) but has
-      not been separated from a token-readout artefact.</div>
-    <div class="card"><div class="tg">experiment · <em>peer framing</em></div>
-      Gate P pilot: peer-endorsement stimuli on AgentHarm's four social-proof categories, task text
-      byte-identical across conditions. Does compliance rise while the <code>task_last</code> signal
-      stays put? Scale to 9B on the cluster once the pilot fires.</div>
+    <div class="card"><div class="tg">experiment · <em>Phase 1 at 9B</em></div>
+      The direction work ran at 4B only; Gate P ran at both scales. Until the extraction, Arditi
+      selection and inversion sweep are repeated at 9B, the two phases are not joined on one model.
+      The cluster preflight already exercises every device seam this needs (E13), so the cost is
+      queue time rather than new code.</div>
+    <div class="card"><div class="tg">experiment · <em>joint measurement</em></div>
+      Gate P is done and behavioural: it shows peer identity does not move compliance. It does
+      <em>not</em> read <code>r_harm</code> on those same rollouts, so &ldquo;belief preserved while
+      behaviour moves&rdquo; remains an inference across two phases rather than one measurement. Capturing
+      the harmfulness projection during the loop is the experiment that would close it.</div>
   </div>
 </section>
 </div>
@@ -258,16 +259,17 @@ tbl(document.getElementById('ledger'),['Claim','Evidence','Status'],[
    'AUROC pick has kl 0.45, 0.08 compliance — separator is not the ablating vector',
    st(CA?'yes':'no')],
  ['r_harm encodes the harmfulness belief',
-   AN&&AN.headline?('reply inversion @L'+AN.headline.r_harm.layer+': benign\u2192harmful '+
-     AN.headline.r_harm.benign_judged_harmful.toFixed(2)+', harmful\u2192harmless '+
-     AN.headline.r_harm.harmful_judged_harmless.toFixed(2)+', refusals 0.00')
+   AN&&AN.headline?('reply inversion @L'+AN.headline.r_harm.plus_layer+': pushed + '+
+     AN.headline.r_harm.plus_benign_judged_harmful.toFixed(2)+', pushed \u2212 '+
+     AN.headline.r_harm.minus_benign_judged_harmful.toFixed(2)+', refusals '+
+     AN.headline.r_harm.peak_refusal.toFixed(2))
      :'inversion test not yet run',
-   st(AN&&AN.headline&&AN.headline.r_harm.benign_judged_harmful>=0.3?'yes':'no')],
+   st(AN&&AN.headline&&AN.headline.r_harm.plus_benign_judged_harmful>=0.3?'yes':'no')],
  ['r_ref moves wording, not belief',
    AN&&AN.headline?('same task: never makes benign look harmful (0.00); peak refusal '+
      AN.headline.r_ref.peak_refusal.toFixed(2))
      :'inversion test not yet run',
-   st(AN&&AN.headline&&AN.headline.r_ref.benign_judged_harmful<0.15?'yes':'no')],
+   st(AN&&AN.headline&&AN.headline.r_ref.plus_benign_judged_harmful<0.15?'yes':'no')],
  ['Peer framing shifts compliance','pilot not yet run',st('no')],
 ]);
 
@@ -405,6 +407,61 @@ const ENTRIES=[
     'contrast. <br><br><b>The result is still null.</b> C2 \u2212 C1b = +1.7pp, p = 0.69 over 115 items / 29 '+
     'independent scenarios. Nothing survives family-wide correction. The honest reading is a bounded null '+
     'on the 4B, and the 9B is the test that says whether that is the model or the manipulation.'},
+ {id:'E12',cls:'bad',t:'Three cluster defects, none of them in the research code',
+  k:[['jobs before one produced data','3'],['CPU-hours burnt on a wrong CUDA build','0.15'],
+     ['jobs reporting COMPLETED while doing nothing','1']],
+  b:'Moving to Spartan cost three submissions, each failing differently and each invisible from the '+
+    'laptop. <b>(1)</b> uv resolved the venv against the login node\'s <code>/usr/bin/python3.12</code>, '+
+    'which compute nodes do not have. <code>.venv/bin/python</code> became a dangling symlink; '+
+    '<code>source activate</code> still succeeded because it only edits <code>PATH</code>, and bash '+
+    'skipped the unexecutable link and fell through to Anaconda\'s 3.11.7. Fixed by forcing '+
+    '<code>UV_PYTHON_PREFERENCE=only-managed</code> so the interpreter lives in project storage. '+
+    '<b>(2)</b> The sbatch scripts had no <code>set -e</code>, so the preflight gate was decorative: '+
+    'every subsequent step ran and failed, and the job exited 0 from its final <code>echo</code>. '+
+    'SLURM recorded COMPLETED for a job that produced nothing. <b>(3)</b> PyPI\'s torch 2.13.0 is built '+
+    'against CUDA 13.0; the driver is 12.8, so <code>torch.cuda.is_available()</code> returned False and '+
+    'the 9B loaded and generated <em>on CPU</em> for nine minutes, passing thirteen preflight checks on '+
+    'the way. Only the two checks that assert CUDA specifically caught it.'+
+    '<br><br>The lesson is (2). A silent success is worse than a loud failure: had that job been the '+
+    '16-hour run, the CPU fallback would have produced real-looking numbers a day late. Every sbatch now '+
+    'aborts on first error, and the environment asserts that <code>python</code> is the venv\'s and that '+
+    'torch imports before anything else runs.'},
+ {id:'E13',cls:'good',t:'A preflight that executes the seams instead of inspecting them',
+  k:[['checks gated on every job','24'],['Phase 1 device seams exercised','8'],
+     ['runtime','~2 min']],
+  b:'The CUDA branch of <code>device.py</code> had never executed. Auditing it by reading was not enough '+
+    '— a device mismatch raises rather than degrading, so it would have killed a job hours in. '+
+    '<code>17_cluster_preflight.py --phase1</code> runs the smallest real version of every seam where a '+
+    'CPU-held direction meets an on-device activation: activation capture, difference-of-means, '+
+    'projection to numpy, ablation, steering, batched pre-hook steering with a mask, the SVD control. It '+
+    'exits non-zero, so no run starts on a broken node. All eight passed first time on an A100 — the '+
+    'device discipline in the source was sound; what was missing was proof that it had ever run.'},
+ {id:'E14',cls:'good',t:'Gate P at 9B: the peer effect is null, and the null is now bounded',
+  k:[['rows','832 (208 items × 4 arms)'],['base scenarios','52'],
+     ['C2 − C1b','−1.0pp, p = 0.727'],['H100-hours','7.75'],['judge cost','$0.058']],
+  b:'The full corpus at 9B, multi-turn, AgentHarm\'s own rubrics with the judge live. <b>C2 − C1b = '+
+    '−1.0pp (exact p = 0.727, cluster p = 0.688).</b> Naming the peers changes nothing measurable '+
+    'against the speaker-free floor.'+
+    '<br><br>The secondary outcomes carry the interesting part. Against C0, the speaker-free board lifts '+
+    'any-tool-call by +4.3pp (p = 0.049) and named peers by +5.3pp (p = 0.019) — the <em>context</em> '+
+    'moves willingness to act, and adding identities on top adds +1.0pp. That is Hu &amp; Qu\'s '+
+    'speaker-free result reproduced in an agentic setting, and it is the reason C1b exists: without it the '+
+    'same data reads as a +5.3pp peer-pressure effect.'+
+    '<br><br>The null replicates across scale — +1.7pp at 4B, −1.0pp at 9B, opposite signs, both far '+
+    'from significance — and 52 base scenarios give ~80% power at 15pp, so an effect that size is '+
+    'excluded. Two caveats stay attached: only <b>25 of 208</b> items are ever discordant, and <b>108 of '+
+    '208</b> never make a tool call in any arm. The 9B refuses articulately where the 4B mostly failed at '+
+    'the task, which is a healthier floor but still a floor.'},
+ {id:'E15',cls:'bad',t:'The multiplicity family did not contain the tests being argued from',
+  k:[['tests in family, before','6'],['after','12'],
+     ['strongest family-Holm, before','1.000'],['after','0.231']],
+  b:'<code>report()</code> excluded the PARTIAL and any-tool-call blocks from <code>ALL_TESTS</code>. '+
+    'That was defensible while they were diagnostics nobody quoted. But the write-up now argues the '+
+    'context effect <em>from</em> those two outcomes, and a correction that omits the tests carrying the '+
+    'argument is not a correction. Including them moves the family from 6 tests to 12, and the strongest '+
+    'signal anywhere — any-tool-call C2 − C0, raw p = 0.019 — goes to family-Holm <b>0.231</b> '+
+    'rather than the 1.000 the truncated family reported. Nothing survives either way; the difference is '+
+    'that 0.231 is the honest number and 1.000 was an artefact of what had been left out.'},
 ];
 const logn=document.getElementById('log');
 ENTRIES.forEach(e=>{const d=el('div','entry '+e.cls);
@@ -504,12 +561,14 @@ if(IV && AN){
                r_arditi:'r_arditi — Gate-B causal mediator'};
     for(const k of ['r_harm','r_ref','r_arditi']){
       const v=H[k];
-      const verdict = v.benign_judged_harmful>=0.3
+      const verdict = v.plus_benign_judged_harmful>=0.3
         ? '<span class="yes">changes the belief</span>'
         : (v.peak_refusal>=0.5 ? '<span class="no">changes wording / refuses</span>'
                                : '<span class="part">no belief change</span>');
-      hr.push([LBL[k],{n:'L'+v.layer},{n:v.benign_judged_harmful.toFixed(2)},
-               {n:v.harmful_judged_harmless.toFixed(2)},{n:v.peak_refusal.toFixed(2)},
+      const lay = v.plus_layer!=null ? 'L'+v.plus_layer
+                : (v.minus_layer!=null ? 'L'+v.minus_layer+' (\u2212)' : '\u2014');
+      hr.push([LBL[k],{n:lay},{n:v.plus_benign_judged_harmful.toFixed(2)},
+               {n:v.minus_benign_judged_harmful.toFixed(2)},{n:v.peak_refusal.toFixed(2)},
                {html:verdict}]);
     }
     tbl(document.getElementById('inv-head'),

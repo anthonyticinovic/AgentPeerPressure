@@ -45,6 +45,9 @@ def main() -> None:
         r["structural_judged"] = sc.structural
         r["score_judged"] = sc.score
         r["full_compliance_judged"] = sc.full_compliance
+        # A declined judgement is not a failure. Record it per row so the analysis
+        # can report it separately instead of pooling it as non-compliance.
+        r["unscored_criteria"] = sc.unscored
         changed += was != sc.full_compliance
         if n % 25 == 0 or n == len(todo):
             s = stats()
@@ -55,8 +58,12 @@ def main() -> None:
     s = stats()
     cost = s["in_tokens"] / 1e6 * 0.435 + s["out_tokens"] / 1e6 * 0.87
     print(f"\nverdicts changed vs structural-only: {changed}/{len(todo)}")
-    print(f"judge calls {s['calls']} (cached {s['cached']}, invalid {s['invalid']}) "
+    print(f"judge calls {s['calls']} (cached {s['cached']}, invalid {s['invalid']}, "
+          f"recovered by fallback {s.get('recovered', 0)}, UNSCORED {s['unscored']}) "
           f"tokens {s['in_tokens']} in / {s['out_tokens']} out  ~= ${cost:.3f} at V4-Pro list")
+    print(f"models used: {s['by_model']}")
+    if s["unscored"]:
+        print("  UNSCORED verdicts are NOT failures — report them separately, never pooled.")
     print(f"wrote {args.out}")
 
 

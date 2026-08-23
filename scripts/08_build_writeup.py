@@ -3,8 +3,11 @@
 Separate from the research log by design. The log is the working record: every wrong
 turn, every retraction, the full parameter trail. This is the argument: what was asked,
 what was measured, what it means. Implementation detail and the correction history stay
-in the log, because at this stage they are noise against a result that is itself only a
-precondition for the main experiment.
+in the log.
+
+What the write-up does carry is *what was verified and how* — the manipulation checks,
+the sample that could ever have moved, and the bound the null actually supports. A null
+reported without those is not a result, it is an absence.
 
 Every number is read from results/*.json. Nothing here is transcribed by hand.
 
@@ -33,6 +36,8 @@ def build() -> str:
     sel = _load("arditi_selection.json")
     hand = _load("HANDLABEL_arditi_selected.json")
     dual = _load("dual_directions.json")
+    p9 = _load("gate_p_9b.json")
+    p4 = _load("gate_p_4b.json")
 
     payload = {
         "head": ana["headline"],
@@ -61,8 +66,68 @@ def build() -> str:
             "harm": dual["positions"]["task_last"]["auroc"],
         },
         "model": sweep.get("model", "Qwen/Qwen3.5-4B"),
+        "gatep": _gatep(p9, p4),
     }
     return TEMPLATE.replace("__DATA__", json.dumps(payload))
+
+
+def _block(payload, label, ref):
+    for b in payload["blocks"]:
+        if b["label"].startswith(label) and b["ref"] == ref:
+            return b
+    return None
+
+
+def _best_test(p9):
+    """The strongest signal anywhere in the family, named. Reporting only the adjusted
+    number hides which test produced it; reporting only the raw one hides the
+    correction."""
+    fam = p9.get("family_holm") or {}
+    if not fam:
+        return None
+    key = min(fam, key=lambda k: fam[k])
+    raw = next((a["p"] for b in p9["blocks"] for a in b["arms"]
+                if f"{b['label']}|{a['arm']}-{b['ref']}" == key), None)
+    label, contrast = key.split("|")
+    return {"contrast": contrast, "outcome": label.split(" (")[0],
+            "raw": raw, "holm": fam[key], "n_tests": len(fam)}
+
+
+def _gatep(p9, p4):
+    """Phase 2 for the write-up: the primary contrast, the two secondary outcomes that
+    carry the actual pattern, and the descriptors that keep the null honest."""
+    if not p9:
+        return None
+    full9 = _block(p9, "FULL compliance", "C1b")
+    partial9 = _block(p9, "PARTIAL", "C0")
+    call9 = _block(p9, "any tool call", "C0")
+    out = {
+        "model": p9["meta"]["model"],
+        "judge": p9["meta"].get("judge"),
+        "n_rows": p9["n_rows"], "n_items": p9["n_items"], "n_clusters": p9["n_clusters"],
+        "max_turns": p9["meta"]["max_turns"],
+        "discordant": p9["discordant_items"],
+        "inert": p9["inert_items"],
+        "at_cap": p9["rows_at_turn_cap"],
+        "unscored": p9["unscored_rows"],
+        "full": full9,
+        # The speaker-free floor is the whole point of the design: C2 - C0 would credit
+        # the entire endorsement effect to peer identity. These two outcomes are where
+        # the context effect is visible at all, so both are reported, Holm and all.
+        "ladder": [
+            {"outcome": "any tool call", "block": call9},
+            {"outcome": "partial compliance", "block": partial9},
+        ],
+        "family": _best_test(p9),
+    }
+    if p4:
+        f4 = _block(p4, "FULL compliance", "C1b")
+        out["scale"] = {
+            "model": p4["meta"]["model"], "n_items": p4["n_items"],
+            "n_clusters": p4["n_clusters"],
+            "c2": next(a for a in f4["arms"] if a["arm"] == "C2"),
+        }
+    return out
 
 
 TEMPLATE = Path(__file__).with_name("_writeup_template.html").read_text()
