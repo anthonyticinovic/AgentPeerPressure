@@ -61,7 +61,10 @@ def stamp(args, model_name: str) -> dict:
     try:
         sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
     except Exception:
-        sha = "unknown"
+        # No .git on the cluster — only tracked files are shipped. The sync writes
+        # the sha to this file so provenance survives the transfer.
+        stamped = Path(__file__).resolve().parents[1] / ".git_sha"
+        sha = stamped.read_text().strip() if stamped.exists() else "unknown"
     return {
         "model": model_name, "conditions": list(CONDITIONS), "seed": args.seed,
         "max_turns": args.max_turns, "max_new_tokens": args.max_new_tokens,

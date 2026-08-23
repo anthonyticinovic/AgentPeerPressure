@@ -12,3 +12,5 @@ results/
 *.pt
 *.npz
 !artifacts/frozen/*.npz
+.git_sha
+.filelist
