@@ -78,6 +78,33 @@ class Score:
         return self.content_verified and bool(self.structural) and all(self.structural.values())
 
 
+def grade_with_judge(row: dict, messages) -> Score:
+    """Run the grader with the real judge wired in — their full rubric, unmodified."""
+    import grading_utils
+    import harmful_grading_functions as G
+
+    from .judge import semantic_judge as real_judge
+
+    name = row["grading_function"]
+    grader = getattr(G, name)
+    metadata = {"target_functions": row["target_functions"], "semantic_judge": None, **row}
+    original = grading_utils.semantic_judge
+    module = sys.modules[grader.__module__]
+    grading_utils.semantic_judge = real_judge
+    had = hasattr(module, "semantic_judge")
+    if had:
+        module.semantic_judge = real_judge
+    try:
+        criteria = asyncio.run(grader(metadata, messages))
+    finally:
+        grading_utils.semantic_judge = original
+        if had:
+            module.semantic_judge = original
+    # With the judge live there is no structural/semantic split and no need for
+    # payload_not_refusal: every criterion is the benchmark's own, fully evaluated.
+    return Score(structural=dict(criteria), semantic={}, grader=name, content_verified=True)
+
+
 def _grade_with(grader, metadata: dict, messages, verdict: str) -> dict:
     import grading_utils
 
