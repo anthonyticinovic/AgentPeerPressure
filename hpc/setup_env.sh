@@ -38,6 +38,7 @@ echo "Installing ${PRESSURE_TORCH_SPEC} from ${PRESSURE_TORCH_INDEX}"
 uv pip install --python "${PRESSURE_VENV}/bin/python" \
     --index-url "${PRESSURE_TORCH_INDEX}" \
     --extra-index-url https://pypi.org/simple \
+    --index-strategy unsafe-best-match \
     --reinstall-package torch \
     "${PRESSURE_TORCH_SPEC}"
 
