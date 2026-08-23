@@ -258,25 +258,6 @@ def generate_batch(model, tok, enc, max_new_tokens: int) -> list[str]:
     return [tok.decode(row[n_in:], skip_special_tokens=True).strip() for row in out]
 
 
-def raw_diff_of_means(model, tok, harmful, harmless, position: str, chat_fn):
-    """RAW (unnormalised) per-layer diff-of-means at a named position.
-
-    `position` is 'task_last' (t_inst -> harmfulness) or 'context_last'
-    (t_post-inst -> refusal), which is exactly what `mode_dir` selects in their code.
-    Returns (n_layers, hidden).
-    """
-    from .hooks import residuals_at_named
-
-    def mean_for(prompts):
-        total = None
-        for p in prompts:
-            a = residuals_at_named(model, tok, chat_fn(tok, p), p)[position]
-            total = a if total is None else total + a
-        return total / len(prompts)
-
-    return mean_for(harmful) - mean_for(harmless)
-
-
 def answer_offset(text: str) -> int | None:
     """Character index where the judgement token appears, or None.
 

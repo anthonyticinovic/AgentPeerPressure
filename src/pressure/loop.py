@@ -20,7 +20,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .tools import TOOLS_DIR, all_tools, called_tools
+from .tools import TOOLS_DIR, all_tools
 
 VENDOR_ROOT = TOOLS_DIR.parent
 sys.path.insert(0, str(VENDOR_ROOT))

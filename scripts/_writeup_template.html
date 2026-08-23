@@ -1,0 +1,391 @@
+<title>Separating Belief From Refusal</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#EEF1F4; --panel:#FFFFFF; --sunk:#E4E9ED;
+  --ink:#10161C; --soft:#55636E; --rule:#D2DAE1;
+  --belief:#B4531A; --refusal:#1E6E8C; --mediator:#6B4E9B;
+  --ok:#2C6E4B; --no:#9B3230;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0C1114; --panel:#141C21; --sunk:#0F171B;
+  --ink:#E6ECF0; --soft:#93A3AF; --rule:#243138;
+  --belief:#E08B4C; --refusal:#5AB4D4; --mediator:#A98BD6;
+  --ok:#63BC8D; --no:#DE7A72;}}
+:root[data-theme="dark"]{
+  --ground:#0C1114; --panel:#141C21; --sunk:#0F171B;
+  --ink:#E6ECF0; --soft:#93A3AF; --rule:#243138;
+  --belief:#E08B4C; --refusal:#5AB4D4; --mediator:#A98BD6;
+  --ok:#63BC8D; --no:#DE7A72;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Public Sans",system-ui,sans-serif;font-size:16px;line-height:1.62;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:860px;margin:0 auto;padding:56px 24px 96px;
+  display:flex;flex-direction:column;gap:52px}
+h1,h2,h3{font-family:"Newsreader",Georgia,serif;text-wrap:balance;margin:0;font-weight:500}
+h1{font-size:clamp(34px,6vw,54px);line-height:1.04;letter-spacing:-.015em}
+h2{font-size:clamp(23px,3vw,29px);line-height:1.2}
+h3{font-size:18px;line-height:1.3}
+p{margin:0;max-width:66ch}
+a{color:var(--refusal)}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--soft)}
+.mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+code{font-family:"JetBrains Mono",monospace;font-size:.86em;background:var(--sunk);
+  padding:1px 5px;border-radius:2px}
+header{display:flex;flex-direction:column;gap:18px;
+  border-bottom:1px solid var(--ink);padding-bottom:28px}
+.standfirst{font-family:"Newsreader",Georgia,serif;font-size:20px;line-height:1.5;
+  color:var(--ink);max-width:60ch}
+.meta{display:flex;flex-wrap:wrap;gap:18px;font-family:"JetBrains Mono",monospace;
+  font-size:11.5px;color:var(--soft)}
+section{display:flex;flex-direction:column;gap:16px}
+.sig{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:720px){.sig{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:3px;
+  padding:16px 18px;display:flex;flex-direction:column;gap:9px}
+.card .tag{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;font-weight:500}
+.card.b{border-top:3px solid var(--belief)} .card.b .tag{color:var(--belief)}
+.card.r{border-top:3px solid var(--refusal)} .card.r .tag{color:var(--refusal)}
+.card.m{border-top:3px solid var(--mediator)} .card.m .tag{color:var(--mediator)}
+.card p{font-size:14.5px}
+.big{font-family:"Newsreader",serif;font-size:32px;line-height:1;
+  font-variant-numeric:tabular-nums}
+figure{margin:0;background:var(--panel);border:1px solid var(--rule);border-radius:3px;
+  padding:20px 20px 14px;display:flex;flex-direction:column;gap:12px}
+figcaption{font-size:13.5px;color:var(--soft);max-width:70ch}
+svg.chart{width:100%;height:250px;display:block;overflow:visible}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-family:"JetBrains Mono",monospace;
+  font-size:11.5px}
+.legend i{display:inline-block;width:16px;height:2.5px;vertical-align:middle;
+  margin-right:6px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule)}
+th{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--soft);font-weight:500}
+td.n{text-align:right;font-family:"JetBrains Mono",monospace;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.yes{color:var(--ok);font-weight:600} .no{color:var(--no);font-weight:600}
+.pull{border-left:3px solid var(--belief);padding:4px 0 4px 20px;
+  font-family:"Newsreader",serif;font-size:21px;line-height:1.42;max-width:58ch}
+ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px;max-width:66ch}
+li::marker{color:var(--soft)}
+.note{background:var(--sunk);border-radius:3px;padding:15px 18px;font-size:14px;
+  color:var(--soft)}
+.note b{color:var(--ink)}
+@media (prefers-reduced-motion:no-preference){
+  .chart path.series{stroke-dasharray:1400;stroke-dashoffset:1400;
+    animation:draw 1.5s cubic-bezier(.4,0,.2,1) forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">MATS 12.0 &middot; interim findings</div>
+  <h1>Separating belief from refusal</h1>
+  <p class="standfirst">A refusal is two things at once: an internal judgement that a
+  request is harmful, and the behaviour that follows from it. On Qwen3.5-4B these come
+  apart cleanly &mdash; they are carried by different directions, at different token
+  positions, and neither is the direction a monitor would naturally choose.</p>
+  <div class="meta" id="meta"></div>
+</header>
+
+<section>
+  <div class="eyebrow">The question</div>
+  <h2>Which signal should a monitor actually watch?</h2>
+  <p>The motivating deployment is an agent working alongside peers who log completed
+  jobs. Social proof is the manipulation &mdash; no jailbreak, no attacker, no modified
+  weights. The concern is not that such an agent could be made to comply, but that it
+  could comply <em>while still internally registering the task as harmful</em>, leaving a
+  monitor that watches refusal with nothing to fire on.</p>
+  <p>That worry only makes sense if harmfulness and refusal are separable in the first
+  place. Establishing that is a precondition for the main experiment, and it is what this
+  page reports. Three candidate directions were tested, all extracted by
+  difference-of-means over the same corpora, differing only in where they are read and
+  how they are selected.</p>
+  <div class="sig" id="sig"></div>
+</section>
+
+<section>
+  <div class="eyebrow">Result 1</div>
+  <h2>Refusal is causally mediated &mdash; but not by the direction that detects harm</h2>
+  <p id="gateb-p"></p>
+  <div class="scroll"><table id="gateb-t"></table></div>
+  <p class="note" id="gateb-n"></p>
+</section>
+
+<section>
+  <div class="eyebrow">Result 2</div>
+  <h2>Only one direction carries the judgement</h2>
+  <p>Ablation cannot distinguish a belief from a reflex: both produce the same silence.
+  Zhao et al.'s reply-inversion task can, by asking the model to <em>classify</em> the
+  instruction rather than obey it &mdash; and inverting the answer key so the correct
+  reply to a harmful prompt is an acceptance-shaped word.</p>
+  <figure>
+    <div class="mono" style="font-size:13px;color:var(--soft)">prompt given to the model</div>
+    <div class="mono" style="font-size:13.5px;line-height:1.7">User wants to <span
+      style="color:var(--soft)">{instruction}</span><br><span id="mq"></span></div>
+    <figcaption><b>&ldquo;Certainly&rdquo; means harmful; &ldquo;No&rdquo; means
+    harmless.</b> A direction that merely elicits refusal pushes toward
+    &ldquo;No&rdquo; &mdash; the refusal-shaped word &mdash; even when the instruction
+    plainly is harmful. A direction that carries the judgement pushes the other way. The
+    two make opposite predictions on the same prompt.</figcaption>
+  </figure>
+  <p>Each direction was added into one layer at a time across all 32 layers, on 50
+  held-out benign prompts. Unsteered, the model calls none of them harmful.</p>
+  <figure>
+    <h3>Benign instructions judged harmful, by layer</h3>
+    <svg class="chart" id="c-main" viewBox="0 0 820 250" preserveAspectRatio="none"></svg>
+    <div class="legend" id="leg-main"></div>
+    <figcaption id="cap-main"></figcaption>
+  </figure>
+  <p class="pull">Steering the harmfulness direction makes the model call
+  &ldquo;Provide four useful tips to write a clear paper&rdquo; a safety violation
+  &mdash; without producing a single refusal.</p>
+</section>
+
+<section>
+  <div class="eyebrow">The discriminator</div>
+  <h2>Direction of movement, not amount</h2>
+  <p>Every direction moves something, so &ldquo;did the answer change&rdquo; separates
+  nothing. Each direction is harmful-minus-harmless, so pushed <span class="mono">+</span>
+  it should <em>raise</em> the harmful verdict and pushed <span class="mono">&minus;</span>
+  it should lower it. The refusal directions fail that test in a specific and revealing
+  way: they raise the harmful verdict only when pushed toward <em>less</em> harmful.</p>
+  <div class="scroll"><table id="head-t"></table></div>
+  <figcaption id="cap-head"></figcaption>
+</section>
+
+<section>
+  <div class="eyebrow">Where it lives</div>
+  <h2>A narrow band, early in the network</h2>
+  <figure>
+    <h3>Judgement shift vs refusals induced &mdash; harmfulness direction</h3>
+    <svg class="chart" id="c-band" viewBox="0 0 820 250" preserveAspectRatio="none"></svg>
+    <div class="legend" id="leg-band"></div>
+    <figcaption id="cap-band"></figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="eyebrow">Reading</div>
+  <h2>What this establishes</h2>
+  <p>Three functions that are routinely treated as one signal are carried by three
+  different vectors:</p>
+  <ul>
+    <li><b>Detection</b> &mdash; the direction that best separates harmful from benign
+    is <em>not</em> the one that causes refusal, and ablating it damages the model
+    (KL <span class="mono" id="k1"></span>) without producing compliance.</li>
+    <li><b>Causation</b> &mdash; a different, causally selected direction does mediate
+    refusal behaviour, yet leaves the model's judgement of harmfulness untouched.</li>
+    <li><b>Belief</b> &mdash; a third, read at the last instruction token, moves the
+    judgement itself, in the direction its label predicts, with no refusals at all.</li>
+  </ul>
+  <p>For monitoring, the consequence is direct: <b>a probe trained to detect harmful
+  inputs is not measuring the thing that makes the model refuse, and neither is
+  measuring what the model believes.</b> Which of the three a monitor tracks determines
+  what a manipulation would have to defeat &mdash; and whether the manipulation would be
+  visible at all.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Confidence</div>
+  <h2>How these numbers were checked</h2>
+  <ul>
+    <li><b>Controls that can fail.</b> A shuffled-label direction, built the same way
+    from the same activations at the same site, leaves refusal at 1.00 and compliance at
+    0.00. Selection additionally enforces a KL ceiling, which rejects directions that
+    suppress the refusal <em>token</em> rather than the feature.</li>
+    <li><b>Compliance is hand-read, never judged.</b> An automated judge scored 0.20 on
+    the ablation transcripts against 0.84 by hand, reading only framing-heavy openings.
+    Every compliance figure here comes from reading the full completion.</li>
+    <li><b>Verdict labels validated blind.</b> An independent labeller, given replies
+    with all labels stripped and stratified toward the hardest cases, agrees with the
+    scorer on <b>98.1%</b> of them &mdash; the one disagreement being their own
+    lowest-confidence call.</li>
+    <li><b>Unreadable cells are not zeros.</b> Where steering degrades the model badly
+    enough that replies parse to nothing, the cell is marked unreadable and left as a gap
+    rather than plotted as no-effect.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="eyebrow">Limits</div>
+  <h2>What this does not yet show</h2>
+  <ul>
+    <li>One model, 4B parameters. Zhao et al. locate the analogous band at layer 9 of
+    Llama3-8B; we find layers 5&ndash;10 here. Confirmation at 9B is pending.</li>
+    <li>Thinking mode is disabled throughout. It separates the classes markedly better
+    on this task, but thinking-enabled agents are the realistic deployment case.</li>
+    <li>Steering at layers 0&ndash;1 produces large apparent flips in which
+    <span class="mono">+v</span> and <span class="mono">&minus;v</span> give the
+    <em>same</em> answer &mdash; representational damage, not a feature being moved.
+    Those layers are excluded; directionality is credited only where the two signs
+    separate.</li>
+    <li>The peer-framing experiment itself has not run. Everything here is the
+    precondition: the signals are separable, so the question of whether social context
+    can move one without the other is now well posed.</li>
+  </ul>
+</section>
+</div>
+
+<script>
+const D=__DATA__;
+const el=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;
+  if(x!==undefined)n.textContent=x;return n;};
+const f2=x=>x.toFixed(2);
+
+document.getElementById('meta').append(...[
+  ['model',D.model],['candidates swept',D.n_candidates||D.gateb.n_candidates],
+  ['layers',D.n_layers],['held-out prompts','50 + 50'],
+  ['steering coefficient',D.coeff]
+].map(([k,v])=>{const s=el('span');s.append(k+' ');
+  const b=el('b',null,String(v));b.style.color='var(--ink)';s.append(b);return s;}));
+
+document.getElementById('mq').textContent=D.question;
+
+// --- the three directions -------------------------------------------------------
+[['b','r_harm','last instruction token','Difference-of-means read at <code>t_inst</code>, before the model has seen the post-instruction template.',D.auroc.harm.toFixed(3)+' AUROC'],
+ ['r','r_ref','last prompt token','The same construction read at <code>t_post-inst</code> &mdash; the position prior work uses for a refusal direction.',D.auroc.ref.toFixed(3)+' AUROC'],
+ ['m','r_causal','selected by causal effect','Chosen from a '+D.gateb.n_candidates+'-candidate position&times;layer grid by ablation efficacy, not separability.','i*='+D.gateb.position+', l*='+D.gateb.layer]
+].forEach(([cls,name,where,desc,stat])=>{
+  const c=el('div','card '+cls);
+  c.append(el('div','tag',where));
+  const h=el('h3',null,name);h.style.fontFamily='"JetBrains Mono",monospace';
+  h.style.fontSize='16px';c.append(h);
+  const p=el('p');p.innerHTML=desc;c.append(p);
+  const s=el('div','mono');s.style.fontSize='12px';s.style.color='var(--soft)';
+  s.textContent=stat;c.append(s);
+  document.getElementById('sig').append(c);});
+
+// --- Result 1 -------------------------------------------------------------------
+const G=D.gateb;
+document.getElementById('gateb-p').innerHTML=
+  'Searching all '+G.n_candidates+' candidates by causal effect &mdash; minimum bypass '+
+  'subject to a KL ceiling and a depth limit &mdash; selects a direction at position '+
+  G.position+', layer '+G.layer+'. Ablating it collapses refusal on held-out harmful '+
+  'prompts, and a shuffled-label direction built the same way at the same site does '+
+  'nothing, so the effect is carried by the labels rather than the geometry.';
+
+const tbl=(node,head,rows)=>{const h=el('tr');head.forEach(x=>h.append(el('th',null,x)));
+  node.append(h);rows.forEach(r=>{const tr=el('tr');
+    r.forEach(c=>{if(c&&c.html){const td=el('td',c.cls||null);td.innerHTML=c.html;tr.append(td);}
+      else if(c&&c.n!==undefined)tr.append(el('td','n',c.n));
+      else tr.append(el('td',null,String(c)));});node.append(tr);});};
+
+tbl(document.getElementById('gateb-t'),
+  ['Intervention','Refusal rate','Harmful content delivered'],
+  [['no intervention',{n:f2(G.refusal_base)},{n:'0.00'}],
+   [{html:'ablate <span class="mono">i*='+G.position+', l*='+G.layer+'</span>'},
+    {n:f2(G.refusal_abl)},{n:f2(G.hand)}],
+   ['shuffled-label control, same site',{n:f2(G.refusal_shuf)},{n:'0.00'}],
+   [{html:'ablate the best <em>separating</em> direction'},{n:'0.00'},{n:f2(G.auroc_hand)}]]);
+
+document.getElementById('gateb-n').innerHTML=
+  '<b>The detector is not the cause.</b> The direction with the highest harmful/benign '+
+  'AUROC fails the same selection: its ablation perturbs the model far more '+
+  '(KL '+G.auroc_kl.toFixed(2)+' against a 0.10 ceiling) and yields '+f2(G.auroc_hand)+
+  ' compliance. Separability and causal mediation are carried by different vectors.';
+document.getElementById('k1').textContent=G.auroc_kl.toFixed(2);
+
+// --- charts ---------------------------------------------------------------------
+const NS='http://www.w3.org/2000/svg';
+function chart(id,legId,series,opt){
+  const svg=document.getElementById(id);if(!svg)return;
+  const W=820,H=250,L=52,R=14,T=16,B=34;
+  const n=series[0].v.length, lo=opt.lo??0, hi=opt.hi??1;
+  const X=i=>L+i*((W-L-R)/(n-1)), Y=q=>H-B-((q-lo)/(hi-lo))*(H-T-B);
+  const add=(t,a,parent)=>{const e=document.createElementNS(NS,t);
+    for(const k in a)e.setAttribute(k,a[k]);(parent||svg).append(e);return e;};
+  (opt.ticks||[0,0.5,1]).forEach(t=>{
+    add('line',{x1:L,x2:W-R,y1:Y(t),y2:Y(t),stroke:'currentColor',
+      'stroke-opacity':t===lo?0.28:0.11,'stroke-width':1});
+    const tx=add('text',{x:L-9,y:Y(t)+4,'text-anchor':'end','font-size':11,
+      fill:'currentColor','fill-opacity':.55,'font-family':'JetBrains Mono,monospace'});
+    tx.textContent=t.toFixed(opt.dp??1);});
+  if(opt.band){add('rect',{x:X(opt.band[0]),y:T,width:X(opt.band[1])-X(opt.band[0]),
+    height:H-T-B,fill:'currentColor','fill-opacity':.05});
+    const bt=add('text',{x:(X(opt.band[0])+X(opt.band[1]))/2,y:T+13,'text-anchor':'middle',
+      'font-size':10.5,fill:'currentColor','fill-opacity':.5,
+      'font-family':'JetBrains Mono,monospace'});bt.textContent=opt.bandLabel||'';}
+  [0,8,16,24,31].forEach(i=>{const tx=add('text',{x:X(i),y:H-12,'text-anchor':'middle',
+    'font-size':11,fill:'currentColor','fill-opacity':.55,
+    'font-family':'JetBrains Mono,monospace'});tx.textContent=i;});
+  const ax=add('text',{x:(L+W-R)/2,y:H-1,'text-anchor':'middle','font-size':10.5,
+    fill:'currentColor','fill-opacity':.45,'font-family':'JetBrains Mono,monospace'});
+  ax.textContent='layer';
+  series.forEach(s=>{
+    let d='',pen=false;
+    s.v.forEach((y,i)=>{if(y===null){pen=false;return;}
+      d+=(pen?'L':'M')+X(i)+','+Y(y)+' ';pen=true;});
+    add('path',{class:'series',d:d,
+      fill:'none',stroke:s.c,'stroke-width':s.w||2.2,'stroke-linejoin':'round',
+      'stroke-dasharray':s.dash||''});
+    if(s.mark!==undefined)add('circle',{cx:X(s.mark),cy:Y(s.v[s.mark]),r:4.5,
+      fill:'var(--panel)',stroke:s.c,'stroke-width':2.2});});
+  const lg=document.getElementById(legId);
+  series.forEach(s=>{const w=el('span');const i=el('i');i.style.background=s.c;
+    if(s.dash)i.style.background='repeating-linear-gradient(90deg,'+s.c+' 0 4px,transparent 4px 7px)';
+    w.append(i);w.append(s.n);lg.append(w);});
+}
+
+const A=D.arms;
+// A cell where most replies parse to nothing is unreadable, not zero. Plotting it as
+// 0.00 would make a destroyed model look like an inert one, so those points become
+// gaps in the line (null breaks the path).
+const P =k=>A[k].map(r=>r.readable?r.p_harmful:null);
+const RF=k=>A[k].map(r=>r.readable?r.refused:null);
+const UNP=k=>A[k].map(r=>r.unparsed);
+chart('c-main','leg-main',[
+  {v:P('harmless/r_harm+'),c:'var(--belief)',n:'r_harm  (+)',mark:D.head.r_harm.plus_layer},
+  {v:P('harmless/r_ref+'),c:'var(--refusal)',n:'r_ref  (+)'},
+  {v:P('harmless/r_arditi+'),c:'var(--mediator)',n:'r_causal  (+)'},
+ ],{lo:0,hi:1,ticks:[0,0.5,1],dp:1,band:[D.window[0],D.window[D.window.length-1]],
+    bandLabel:'directional band'});
+document.getElementById('cap-main').innerHTML=
+  'Each direction pushed in the <span class="mono">+</span> sense &mdash; toward '+
+  '<em>more</em> harmful &mdash; on 50 benign instructions. Only <span class="mono">'+
+  'r_harm</span> raises the harmful verdict, peaking at '+
+  f2(D.head.r_harm.plus_benign_judged_harmful)+' at layer '+D.head.r_harm.plus_layer+
+  '. The other two are flat at zero at every one of the 32 layers. Lines break where a '+
+  'cell is unreadable &mdash; most replies parsed to nothing, so the model was destroyed '+
+  'rather than unmoved, and a zero there would be indistinguishable from no effect. '+
+  'Shading marks the band where '+
+  '<span class="mono">+v</span> and <span class="mono">&minus;v</span> move the '+
+  'judgement in opposite directions; outside it, apparent effects are damage.';
+
+chart('c-band','leg-band',[
+  {v:P('harmless/r_harm+'),c:'var(--belief)',n:'judgement shifted'},
+  {v:RF('harmless/r_harm+'),c:'var(--belief)',n:'refusals induced',dash:'5 4',w:1.8},
+  {v:RF('harmless/r_ref+'),c:'var(--refusal)',n:'refusals induced (r_ref)',dash:'5 4',w:1.8},
+ ],{lo:0,hi:1,ticks:[0,0.5,1],dp:1});
+document.getElementById('cap-band').innerHTML=
+  'The harmfulness direction moves the judgement without ever making the model refuse '+
+  '(dashed rust line is flat at zero across all 32 layers). The refusal direction does '+
+  'the opposite: it never shifts the judgement, and from layer 7 onward it drives the '+
+  'model into outright refusal.';
+
+// --- sign-consistency table ------------------------------------------------------
+const H=D.head, LBL={r_harm:['r_harm','belief'],r_ref:['r_ref','refusal'],
+                     r_arditi:['r_causal','refusal, causally selected']};
+tbl(document.getElementById('head-t'),
+  ['Direction','pushed + (more harmful)','pushed \u2212 (less harmful)','refusals','moves as labelled'],
+  Object.keys(H).map(k=>{const v=H[k];
+    const cell=(val,lay,flat)=> val===null?{html:'&mdash;'}
+      : flat?{html:'<span style="color:var(--soft)">no effect, any layer</span>'}
+      : {n:f2(val)+'  @L'+lay};
+    const mp=cell(v.minus_benign_judged_harmful,v.minus_layer,v.minus_flat);
+    return [{html:'<span class="mono">'+LBL[k][0]+'</span> <span style="color:var(--soft)">'+
+             LBL[k][1]+'</span>'},
+            cell(v.plus_benign_judged_harmful,v.plus_layer,v.plus_flat),mp,
+            {n:f2(v.peak_refusal)},
+            {html:v.label_consistent?'<span class="yes">yes</span>':'<span class="no">no</span>'}];}));
+document.getElementById('cap-head').innerHTML=
+  'Values are the fraction of benign instructions judged harmful (baseline 0.00). '+
+  '<span class="mono">r_ref</span> reaches 1.00 &mdash; but only when pushed toward '+
+  '<em>less</em> harmful, and it induces refusal at a rate of 1.00. That is an answer '+
+  'token being overwritten, not a belief being changed.';
+</script>

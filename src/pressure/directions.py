@@ -136,32 +136,6 @@ def calibrate_tau(proj_harmless: np.ndarray, fpr: float | None = None) -> float:
 # --- frozen artefact ------------------------------------------------------------
 
 
-def freeze(path: Path, **arrays) -> str:
-    """Write the artefact plus a manifest, and return its SHA-256."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(path, **arrays)
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
-    ).stdout.strip()
-    (path.parent / "manifest.json").write_text(
-        json.dumps({"sha256": digest, "commit": commit, "keys": sorted(arrays)}, indent=2)
-    )
-    return digest
-
-
-def load_frozen(path: Path):
-    """Load the artefact, asserting its hash still matches the manifest."""
-    manifest = json.loads((path.parent / "manifest.json").read_text())
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    if digest != manifest["sha256"]:
-        raise AssertionError(
-            f"frozen artefact mutated: {digest} != {manifest['sha256']}. "
-            "Directions must never be recomputed on evaluation data."
-        )
-    return np.load(path), manifest
-
-
 def cosine(a: np.ndarray, b: np.ndarray) -> float:
     a, b = np.asarray(a, float), np.asarray(b, float)
     return float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b)))

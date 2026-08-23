@@ -65,15 +65,3 @@ def sweep_figures(auroc, offsets, types, l_star, o_star, prefix: str = "r_ref"):
     return save(fig, f"{prefix}_sweep")
 
 
-def projection_hist(proj_harmful, proj_harmless, tau, name="r_ref_separation"):
-    """Distribution of projections at (l*, p*) with the frozen threshold marked."""
-    fig, ax = plt.subplots(figsize=(7, 4))
-    ax.hist(proj_harmless, bins=40, alpha=0.65, label="harmless (Alpaca)", color="#7aa6c2")
-    ax.hist(proj_harmful, bins=40, alpha=0.65, label="harmful (AdvBench)", color="#c2452d")
-    ax.axvline(tau, color="black", ls="--", lw=1.2, label=f"tau (5% FPR) = {tau:.2f}")
-    ax.set_xlabel("projection onto r_ref at (l*, p*)")
-    ax.set_ylabel("count")
-    ax.set_title("Held-out separation")
-    ax.legend(fontsize=9)
-    fig.tight_layout()
-    return save(fig, name)

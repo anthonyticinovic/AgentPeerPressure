@@ -117,7 +117,7 @@ def main() -> None:
     ap.add_argument("--n-items", type=int, default=None, help="subset for smoke tests")
     ap.add_argument("--one-per-grader", action="store_true", help="one item per grader, all 52")
     ap.add_argument("--conditions", nargs="+", default=None, help="subset of conditions")
-    ap.add_argument("--max-turns", type=int, default=10)
+    ap.add_argument("--max-turns", type=int, default=16)
     ap.add_argument("--max-new-tokens", type=int, default=768)
     ap.add_argument("--seed", type=int, default=CFG.seed)
     ap.add_argument("--no-judge", action="store_true",
