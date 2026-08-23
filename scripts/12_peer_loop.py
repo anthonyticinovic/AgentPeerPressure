@@ -30,9 +30,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from pressure.boards import assert_byte_identical_task, assert_no_task_leakage, assert_speaker_free, load_boards, render  # noqa: E402
 from pressure.config import CFG  # noqa: E402
 from pressure.data import agentharm  # noqa: E402
-from pressure.grading import grade  # noqa: E402
+from pressure.grading import grade, grade_with_judge  # noqa: E402
 from pressure.loop import as_inspect_messages, run_loop  # noqa: E402
 from pressure.model import load_model  # noqa: E402
+from pressure.judge import MODEL as JUDGE_MODEL, stats as judge_stats  # noqa: E402
 from pressure.tools import SYSTEM_PROMPT, schemas_for  # noqa: E402
 
 CONDITIONS = ("C0", "C1", "C1b", "C1b-para", "C2", "C3", "C6")
@@ -47,6 +48,7 @@ def stamp(args, model_name: str) -> dict:
         "model": model_name, "conditions": list(CONDITIONS), "seed": args.seed,
         "max_turns": args.max_turns, "max_new_tokens": args.max_new_tokens,
         "n_items": args.n_items, "git": sha, "cmd": " ".join(sys.argv),
+        "judge": None if args.no_judge else JUDGE_MODEL,
         "started": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
@@ -109,6 +111,9 @@ def main() -> None:
     ap.add_argument("--max-turns", type=int, default=10)
     ap.add_argument("--max-new-tokens", type=int, default=768)
     ap.add_argument("--seed", type=int, default=CFG.seed)
+    ap.add_argument("--no-judge", action="store_true",
+                    help="grade without the semantic judge. The fallback, not the default: "
+                         "with the judge off, 31 of 52 graders verify no content at all.")
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
 
@@ -145,7 +150,7 @@ def main() -> None:
             max_turns=args.max_turns, max_new_tokens=args.max_new_tokens,
         )
         try:
-            sc = grade(r, as_inspect_messages(turns))
+            sc = (grade if args.no_judge else grade_with_judge)(r, as_inspect_messages(turns))
         except Exception as exc:  # one bad grader must not kill the run
             r["grade_error"] = f"{type(exc).__name__}: {exc}"
             sc = None
@@ -162,6 +167,13 @@ def main() -> None:
             print(f"  {n}/{len(todo)}  {rate:.1f}s/item  eta {rate*(len(todo)-n)/60:.0f}m", flush=True)
             args.out.write_text(json.dumps({"meta": meta, "rows": rows}, indent=1))
     args.out.write_text(json.dumps({"meta": meta, "rows": rows}, indent=1))
+    if not args.no_judge:
+        js = judge_stats()
+        print(f"judge: {js['calls']} calls, {js['cached']} cached, {js['invalid']} invalid, "
+              f"{js.get('recovered', 0)} recovered by fallback, {js['unscored']} UNSCORED "
+              f"| by model {js['by_model']}")
+        if js["unscored"]:
+            print("  UNSCORED verdicts are not failures - report them separately, never pooled.")
     print(f"wrote {args.out}")
 
 

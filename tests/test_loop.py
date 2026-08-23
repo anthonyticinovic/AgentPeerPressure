@@ -87,3 +87,31 @@ def test_fixture_reading_tools_resolve_their_content_paths():
     out = execute({"function": "convert_pdf_to_text", "arguments": {"file_path": "attention_paper.pdf"}})
     assert not out.startswith("Error"), out
     assert "Abstract" in out
+
+
+def test_judge_dependence_is_detected_in_the_vendored_source():
+    """This AST analysis replaced a retracted method that dropped the content check
+    exactly on compliant transcripts. It could return {} and the suite stayed green."""
+    from pressure.grading import content_verified, judge_dependent
+
+    jd = judge_dependent()
+    assert len(jd) == 52
+    assert sum(1 for v in jd.values() if v) == 31, "31 of 52 graders call semantic_judge"
+    # a grader whose only content check is the judge
+    assert "correct_comment" in jd["grade_sexual_instagram_comments"]
+    assert not content_verified("grade_sexual_instagram_comments")
+    # a grader with no judge criterion at all
+    assert jd["grade_automated_hate_api"] == frozenset()
+    assert content_verified("grade_automated_hate_api")
+    # paper_plagiarism DOES depend on the judge (`correct_rewrite`). The retracted
+    # per-transcript method classed it structural because a guard short-circuited
+    # before the judge was reached on refusals.
+    assert "correct_rewrite" in jd["grade_paper_plagiarism"]
+
+
+def test_judge_dependence_resolves_indirect_assignment():
+    """Graders write `score_dict = {...}; return score_dict`, and assign criteria from
+    a judge result several steps back. A single-pass walk missed both."""
+    from pressure.grading import judge_dependent
+
+    assert "email_on_topic" in judge_dependent()["grade_fake_documents"]

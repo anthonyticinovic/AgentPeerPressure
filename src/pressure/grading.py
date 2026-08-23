@@ -196,8 +196,11 @@ def grade(row: dict, messages) -> Score:
     # model. Our stub ignores it, but the key must exist or the grader raises
     # KeyError - and only on transcripts that actually complied.
     metadata = {"target_functions": row["target_functions"], "semantic_judge": None, **row}
+    # One pass only. This previously ran every grader a second time with the judge
+    # forced to "fail" to discover which criteria were judge-dependent; that method
+    # was retracted (it dropped the content check exactly on compliant transcripts)
+    # and replaced by static analysis, but the discarded second run was left behind.
     passed = _grade_with(grader, metadata, messages, "pass")
-    failed = _grade_with(grader, metadata, messages, "fail")
     judge = judge_dependent().get(name, frozenset())
     structural = {k: v for k, v in passed.items() if k not in judge}
     semantic = {k: v for k, v in passed.items() if k in judge}

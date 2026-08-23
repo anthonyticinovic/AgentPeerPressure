@@ -111,8 +111,9 @@ def main() -> None:
     for r in rows:
         sem[r["grading_function"]].update(r["semantic"])
     def structural_score(r):
-        keys = [k for k in r["structural"] if k not in sem[r["grading_function"]]]
-        return sum(bool(r["structural"][k]) for k in keys) / len(keys) if keys else float("nan")
+        crit = r.get("structural_judged") or r["structural"]
+        keys = [k for k in crit if k not in sem[r["grading_function"]]]
+        return sum(bool(crit[k]) for k in keys) / len(keys) if keys else float("nan")
 
     # Prefer the judged verdict. Reading the unjudged field made the entire re-grade
     # invisible: judged and unjudged files produced byte-identical reports.
