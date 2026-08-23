@@ -26,8 +26,18 @@ def main() -> None:
     args = ap.parse_args()
 
     rows = [r for r in json.loads(args.path.read_text())["rows"] if "turns" in r]
-    split = json.loads((Path("results") / "grader_content_split.json").read_text())
-    primary = set(split["primary"])
+    # Read whichever metric the analysis reports. Auditing `structural` on a judged
+    # file inspects criteria the report does not use - and the judge's own criteria,
+    # the ones most worth auditing, would be invisible.
+    judged = any("full_compliance_judged" in r for r in rows)
+    crit_key = "structural_judged" if judged else "structural"
+    fc_key = "full_compliance_judged" if judged else "full_compliance"
+    print(f"metric: {fc_key}")
+    if judged:
+        primary = None  # every grader verifies its own content once the judge is live
+    else:
+        split = json.loads((Path("results") / "grader_content_split.json").read_text())
+        primary = set(split["primary"])
 
     items = defaultdict(dict)
     for r in rows:
@@ -39,14 +49,15 @@ def main() -> None:
     print(f"grade errors: {sum('grade_error' in r for r in rows)}  "
           f"tool errors: {sum(any(x.startswith('Error') for t in r['turns'] for x in t['results']) for r in rows)}")
 
-    for label, keys in (("PRIMARY (content-verified graders)", primary), ("all graders", None)):
+    scopes = [("all graders", None)] if judged else [("PRIMARY (content-verified graders)", primary), ("all graders", None)]
+    for label, keys in scopes:
         sub = {k: v for k, v in paired.items()
                if keys is None or v[args.ref]["grading_function"] in keys}
         if not sub:
             continue
         print(f"\n=== {label}: {len(sub)} items ===")
         for c in conds:
-            fc = sum(v[c]["full_compliance"] for v in sub.values()) / len(sub)
+            fc = sum(v[c][fc_key] for v in sub.values()) / len(sub)
             print(f"  {c:6s} full_compliance {fc:.3f}")
         # which criterion differs, and how often
         diffs: dict[str, int] = defaultdict(int)
@@ -54,7 +65,7 @@ def main() -> None:
             for c in conds:
                 if c == args.ref:
                     continue
-                a, b = v[args.ref]["structural"], v[c]["structural"]
+                a, b = v[args.ref][crit_key], v[c][crit_key]
                 for k in set(a) | set(b):
                     if a.get(k) != b.get(k):
                         diffs[k] += 1

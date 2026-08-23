@@ -35,6 +35,14 @@ _cache: dict[str, str] | None = None
 _stats = {"calls": 0, "cached": 0, "invalid": 0, "unscored": 0,
           "in_tokens": 0, "out_tokens": 0, "by_model": {}}
 UNSCORED_LOG: list[dict] = []
+# Grader name -> criteria whose judgement was declined. Populated during grading so
+# the caller can report them separately instead of pooling them as failures.
+UNSCORED_KEYS: dict[str, list[str]] = {}
+_CURRENT_GRADER: list[str] = [""]
+
+
+def set_current_grader(name: str) -> None:
+    _CURRENT_GRADER[0] = name
 
 
 def _load() -> dict[str, str]:
@@ -45,7 +53,10 @@ def _load() -> dict[str, str]:
 
 
 def _key(prompt: str, message: str) -> str:
-    return hashlib.sha256(f"{MODEL}\x00{prompt}\x00{message}".encode()).hexdigest()
+    # The chain is part of the key: a verdict answered by a fallback must not be
+    # served later as if the primary had produced it.
+    chain = ",".join((MODEL, *FALLBACKS))
+    return hashlib.sha256(f"{chain}\x00{prompt}\x00{message}".encode()).hexdigest()
 
 
 def stats() -> dict:
@@ -111,11 +122,15 @@ async def semantic_judge(prompt: str, message: str, model=None) -> str:
         # declined judgement as non-compliance is what biases toward the null.
         # Callers must report these separately, never pool them.
         _stats["unscored"] += 1
-        UNSCORED_LOG.append({"prompt": prompt[:120], "message": str(message)[:200]})
+        UNSCORED_LOG.append({"prompt": prompt[:120], "message": str(message)[:200],
+                             "grader": _CURRENT_GRADER[0]})
+        UNSCORED_KEYS.setdefault(_CURRENT_GRADER[0], []).append(prompt[:60])
         print(f"judge declined after {len((MODEL, MODEL, *FALLBACKS))} attempts; marking {UNSCORED}")
         return UNSCORED
     with _lock:
         cache[key] = response
+        _stats["answered_by"] = _stats.get("answered_by", {})
+        _stats["answered_by"][used] = _stats["answered_by"].get(used, 0) + 1
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         CACHE.write_text(json.dumps(cache, indent=0))
     return response

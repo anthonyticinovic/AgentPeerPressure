@@ -39,6 +39,14 @@ from pressure.tools import SYSTEM_PROMPT, schemas_for  # noqa: E402
 CONDITIONS = ("C0", "C1", "C1b", "C1b-para", "C2", "C3", "C6")
 
 
+def _atomic_write(path: Path, payload: dict) -> None:
+    """Write via a temp file and rename. `write_text` truncates the only copy of a
+    multi-hour run on every checkpoint; a crash mid-write loses everything."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=1))
+    tmp.replace(path)
+
+
 def stamp(args, model_name: str) -> dict:
     try:
         sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
@@ -49,6 +57,7 @@ def stamp(args, model_name: str) -> dict:
         "max_turns": args.max_turns, "max_new_tokens": args.max_new_tokens,
         "n_items": args.n_items, "git": sha, "cmd": " ".join(sys.argv),
         "judge": None if args.no_judge else JUDGE_MODEL,
+        "one_per_grader": args.one_per_grader,
         "started": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
@@ -130,7 +139,8 @@ def main() -> None:
     rows = None
     if args.out.exists():
         saved = json.loads(args.out.read_text())
-        keys = ("model", "conditions", "seed", "n_items", "max_turns", "max_new_tokens")
+        keys = ("model", "conditions", "seed", "n_items", "max_turns", "max_new_tokens",
+                "judge", "one_per_grader")
         if all(saved["meta"].get(k) == meta[k] for k in keys):
             rows = saved["rows"]
             print(f"resuming {sum('turns' in r for r in rows)}/{len(rows)} done")
@@ -151,22 +161,33 @@ def main() -> None:
         )
         try:
             sc = (grade if args.no_judge else grade_with_judge)(r, as_inspect_messages(turns))
-        except Exception as exc:  # one bad grader must not kill the run
+            r.pop("grade_error", None)
+        except Exception as exc:
+            # Record and move on, but do NOT write `turns`: the row stays in `todo`
+            # so a later pass retries it. Previously a transient API failure was
+            # frozen in as non-compliance forever - one-directional, toward the null.
             r["grade_error"] = f"{type(exc).__name__}: {exc}"
-            sc = None
+            print(f"  grade failed ({r['cluster']}/{r['id']}/{r['condition']}): {exc}", flush=True)
+            continue
         r["turns"] = [{"text": t.text, "calls": t.calls, "results": t.results, "truncated": t.truncated} for t in turns]
         r["n_turns"] = len(turns)
         r["called"] = [c["function"] for t in turns for c in t.calls]
         r["cut_mid_call"] = any(t.cut_mid_call for t in turns)
-        r["structural"] = sc.structural if sc else {}
+        # Write the judged fields under the same names 15_regrade uses, so the
+        # analysis detects judged data identically however it was produced. Writing
+        # only `full_compliance` made a judge-on run analyse as judge-off.
+        suffix = "" if args.no_judge else "_judged"
+        r[f"structural{suffix}"] = sc.structural if sc else {}
+        r[f"score{suffix}"] = sc.score if sc else float("nan")
+        r[f"full_compliance{suffix}"] = sc.full_compliance if sc else False
         r["semantic"] = sc.semantic if sc else {}
-        r["score"] = sc.score if sc else float("nan")
-        r["full_compliance"] = sc.full_compliance if sc else False
+        r["judged"] = not args.no_judge
+        r["unscored_criteria"] = sc.unscored if sc else []
         if n % 10 == 0 or n == len(todo):
             rate = (time.time() - t0) / n
             print(f"  {n}/{len(todo)}  {rate:.1f}s/item  eta {rate*(len(todo)-n)/60:.0f}m", flush=True)
-            args.out.write_text(json.dumps({"meta": meta, "rows": rows}, indent=1))
-    args.out.write_text(json.dumps({"meta": meta, "rows": rows}, indent=1))
+            _atomic_write(args.out, {"meta": meta, "rows": rows})
+    _atomic_write(args.out, {"meta": meta, "rows": rows})
     if not args.no_judge:
         js = judge_stats()
         print(f"judge: {js['calls']} calls, {js['cached']} cached, {js['invalid']} invalid, "

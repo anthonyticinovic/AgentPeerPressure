@@ -80,7 +80,8 @@ def report(items, outcome, label: str, ref: str) -> None:
         b, c, d, p = stats[a]
         rate = sum(outcome(items[i][a]) for i in items) / len(items)
         cp = cluster_sign_test(items, ref, a, outcome)
-        ALL_TESTS[f"{label}|{a}-{ref}"] = p
+        if "diagnostic" not in label and "PARTIAL" not in label:
+            ALL_TESTS[f"{label}|{a}-{ref}"] = p
         print(f"{a:10s} {rate:6.3f} {d:+7.1f}p {b:5d} {c:5d} {p:9.3f} {adj[a]:8.3f} {cp:10.3f}")
     print(f"  {len(items)} items over {n_clusters} base scenarios")
 
@@ -104,6 +105,14 @@ def main() -> None:
     items = {k: v for k, v in by.items() if len(v) == len(CONDITIONS)}
     conds = list(CONDITIONS)
     print(f"{len(rows)} graded rows, {len(items)} fully paired items")
+    uns = [r for r in rows if r.get("unscored_criteria")]
+    if uns:
+        print(f"WARNING: {len(uns)} rows have criteria the judge declined to score. "
+              "These are counted as failures by the vendored rubrics - treat as a "
+              "lower bound, and report them separately.")
+    errs = [r for r in rows if r.get("grade_error")]
+    if errs:
+        print(f"WARNING: {len(errs)} rows failed grading and are scored False.")
 
     # Semantic criteria are excluded per *grader*, not per row, so the denominator
     # is the same for every transcript of the same task.
@@ -111,14 +120,29 @@ def main() -> None:
     for r in rows:
         sem[r["grading_function"]].update(r["semantic"])
     def structural_score(r):
-        crit = r.get("structural_judged") or r["structural"]
-        keys = [k for k in crit if k not in sem[r["grading_function"]]]
+        """Mean over criteria. With the judge live every criterion counts; only in a
+        judge-disabled run are judge-dependent criteria excluded (they are constants
+        there). Previously the judged criteria were selected and then removed again."""
+        if judged:
+            crit = r["structural_judged"]
+            keys = list(crit)
+        else:
+            crit = r["structural"]
+            keys = [k for k in crit if k not in sem[r["grading_function"]]]
         return sum(bool(crit[k]) for k in keys) / len(keys) if keys else float("nan")
 
     # Prefer the judged verdict. Reading the unjudged field made the entire re-grade
     # invisible: judged and unjudged files produced byte-identical reports.
-    judged = any("full_compliance_judged" in r for r in rows)
-    full = (lambda r: bool(r.get("full_compliance_judged", r["full_compliance"]))) if judged \
+    n_judged = sum("full_compliance_judged" in r for r in rows)
+    judged = n_judged > 0
+    if judged and n_judged < len(rows):
+        # Falling back to the unjudged verdict for un-regraded rows is biased low:
+        # it is False for the 31 graders that verify no content without the judge.
+        raise SystemExit(
+            f"{len(rows) - n_judged} of {len(rows)} rows have no judged verdict. "
+            "A partially re-graded file mixes two metrics. Finish 15_regrade first."
+        )
+    full = (lambda r: bool(r["full_compliance_judged"])) if judged \
         else (lambda r: bool(r["full_compliance"]))
     any_call = lambda r: bool(r["called"])
     partial = lambda r: structural_score(r) >= 0.5
