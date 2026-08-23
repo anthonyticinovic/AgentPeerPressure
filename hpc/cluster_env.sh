@@ -24,12 +24,20 @@
 # venvs all died with "libpython3.11.so.1.0: cannot open shared object file" when
 # the module they were built against was withdrawn. Nothing here can be withdrawn.
 : "${UV_INSTALL_DIR:=$PRESSURE_BASE/uv}"
+# only-managed is load-bearing. Left to its own devices uv picked the login node's
+# /usr/bin/python3.12, which does not exist on the compute nodes: .venv/bin/python
+# became a dangling symlink, `source activate` still succeeded because it only edits
+# PATH, and bash skipped the unexecutable link and silently fell through to
+# Anaconda's 3.11.7. A managed interpreter lives in project storage, which every
+# node mounts.
+: "${UV_PYTHON_PREFERENCE:=only-managed}"
+: "${UV_PYTHON:=3.12}"
 : "${UV_CACHE_DIR:=$PRESSURE_BASE/uv-cache}"
 : "${UV_PYTHON_INSTALL_DIR:=$PRESSURE_BASE/uv-python}"
 : "${PRESSURE_VENV:=$PRESSURE_PROJECT_DIR/.venv}"
 
 pressure_setup_environment() {
-    export UV_INSTALL_DIR UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
+    export UV_INSTALL_DIR UV_CACHE_DIR UV_PYTHON_INSTALL_DIR UV_PYTHON_PREFERENCE UV_PYTHON
     export PATH="${UV_INSTALL_DIR}:${PATH}"
 
     if ! command -v uv >/dev/null 2>&1; then
@@ -55,6 +63,19 @@ pressure_setup_environment() {
     export HF_DATASETS_OFFLINE=1
     export TOKENIZERS_PARALLELISM=false
     export PYTHONUNBUFFERED=1
+
+    # Verify the interpreter is the venv's, not something PATH fell through to. A
+    # dangling venv symlink is invisible to `source activate`, and the job that hid
+    # it reported COMPLETED with exit 0 while every Python step failed.
+    if [ "$(command -v python)" != "${PRESSURE_VENV}/bin/python" ]; then
+        echo "python resolved to $(command -v python), not ${PRESSURE_VENV}/bin/python." >&2
+        echo "The venv is broken — rebuild it with hpc/setup_env.sh." >&2
+        exit 1
+    fi
+    if ! python -c "import torch" 2>/dev/null; then
+        echo "torch does not import in ${PRESSURE_VENV}. Rebuild with hpc/setup_env.sh." >&2
+        exit 1
+    fi
 
     echo "=== Environment ==="
     echo "Project:  ${PWD}"
