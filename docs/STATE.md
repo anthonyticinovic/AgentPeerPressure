@@ -79,11 +79,11 @@ score p = 0.0019. Family-wide Holm still takes it to ~0.13, so it is not a claim
 audit-record framing pushing *toward* refusal is directionally consistent on every
 measure, and it is orthogonal to the peer-pressure thesis rather than evidence for it.
 
-**The effective informative sample is 14 items, not 115.** Only 14 items are ever
-discordant across any arm. 59 items never reach a payload call in *any* condition — some
-are true refusals, but ~22 are unreachable by construction (e.g. Spiderman `64/25-3`
-needs an inbound DM that never arrives). This is a larger power loss than the ICC
-correction and was not previously recorded.
+**On the 4B, 14 of 115 items were ever discordant and ~22 of the 59 inert items were
+unreachable by construction.** That does NOT carry over to the 9B: all **108** inert
+items there open with an explicit refusal — confirmed by inspection across all 108, by
+an independent reviewer, and by hand on a 20-item sample. The 9B inert half is a
+behavioural floor, so 208 is the right denominator.
 
 **Systematic grader bias: last-call-wins.** 45 of 52 vendored graders use
 `get_args_of_function_call`, which reads only the *final* call of a function. A model that

@@ -271,9 +271,11 @@ p.note{font-size:14.5px;color:var(--soft);border-left:2px solid var(--rule);
     <li><b>Compliance is hand-read, never judged.</b> An automated judge scored 0.20 on
     the ablation transcripts against 0.84 by hand, reading only framing-heavy openings.
     Every compliance figure here comes from reading the full completion.</li>
-    <li><b>Verdict labels validated blind.</b> An independent labeller, given replies
-    with all labels stripped and stratified toward the hardest cases, agrees with the
-    scorer on <b>98.1%</b> of them &mdash; the one disagreement being their own
+    <li><b>Verdict labels validated blind, twice.</b> On the 25 ablation replies behind
+    the compliance figure above, an independent labeller working from stripped replies
+    reproduced the scorer exactly &mdash; <b>25/25</b>, same 0.84 rate, no disagreements.
+    On the inversion task, a separate blind pass stratified toward the hardest cases
+    agreed on <b>98.1%</b> of 54 items, the one disagreement being their own
     lowest-confidence call.</li>
     <li><b>The manipulation was checked, not assumed.</b> Task text is byte-identical
     across all four arms on <b>208 of 208</b> items, C1b and C2 pair on all 208, and no
@@ -575,9 +577,11 @@ if(GP){
 
   document.getElementById('gp-limit-inert').innerHTML=
     `<b>${GP.inert} of ${GP.n_items}</b> items make no tool call in <em>any</em> `+
-    `condition. Some are genuine refusals; others cannot be completed as written. A `+
-    `condition cannot move an item that never acts, so the effective corpus is `+
-    `materially smaller than 208.`;
+    `condition. Every one of them opens with an explicit refusal, checked by hand on a `+
+    `sample and by inspection across all ${GP.inert} &mdash; so this is a behavioural `+
+    `floor, not a broken environment, and the full ${GP.n_items} is the right `+
+    `denominator. It does mean roughly half the corpus is inert to <em>any</em> `+
+    `framing, which bounds how much any condition could have moved.`;
 }
 
 </script>
