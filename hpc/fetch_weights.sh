@@ -9,10 +9,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/cluster_env.sh"
 
-if command -v module >/dev/null 2>&1; then
-    module purge
-    for mod in ${PRESSURE_MODULES}; do module load "${mod}"; done
-fi
+export PATH="${UV_INSTALL_DIR}:${PATH}"
 # shellcheck disable=SC1091
 source "${PRESSURE_VENV}/bin/activate"
 cd "${PRESSURE_PROJECT_DIR}"
@@ -26,6 +23,8 @@ import os
 from huggingface_hub import snapshot_download
 
 # The 4B is included so the smoke test has a cheap fallback if the 9B misbehaves.
+# Datasets are NOT fetched here: AgentHarm is gated, so its cache is shipped from
+# the laptop instead of requiring a token on the cluster.
 for repo in ("Qwen/Qwen3.5-9B", "Qwen/Qwen3.5-4B"):
     print(f"--- fetching {repo}", flush=True)
     p = snapshot_download(repo, allow_patterns=["*.json", "*.safetensors", "*.txt", "*.model"])

@@ -1,36 +1,37 @@
 #!/bin/bash
 # One-time environment build, on a LOGIN node — it needs outbound network, which
-# compute nodes do not have. Fast (a few minutes). Weights are a separate step:
-# see hpc/fetch_weights.sh, which is slow and can run in the background.
+# compute nodes do not have. Weights are a separate, slower step: hpc/fetch_weights.sh
 #
 #   bash hpc/setup_env.sh
 
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/cluster_env.sh"
-
-if command -v module >/dev/null 2>&1; then
-    module purge
-    for mod in ${PRESSURE_MODULES}; do module load "${mod}"; done
-fi
+export UV_INSTALL_DIR UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
+mkdir -p "${UV_INSTALL_DIR}" "${UV_CACHE_DIR}" "${UV_PYTHON_INSTALL_DIR}" "${HF_HOME}"
 cd "${PRESSURE_PROJECT_DIR}"
 
-echo "Building venv at ${PRESSURE_VENV} from $(command -v python)"
-python -m venv "${PRESSURE_VENV}"
+if ! command -v "${UV_INSTALL_DIR}/uv" >/dev/null 2>&1; then
+    echo "Installing uv into ${UV_INSTALL_DIR}"
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="${UV_INSTALL_DIR}" sh
+fi
+export PATH="${UV_INSTALL_DIR}:${PATH}"
+uv --version
+
+# --frozen resolves nothing: it installs exactly what uv.lock pins, so the cluster
+# runs the same dependency set as the laptop rather than a fresh resolution.
+echo "Syncing dependencies from uv.lock"
+uv sync --frozen
+
+# flash-attn must NOT be present: device.py prefers it when installed, while the
+# 4B run used sdpa. That would confound model size with attention kernel.
+uv pip uninstall flash-attn flash_attn 2>/dev/null || true
+
 # shellcheck disable=SC1091
 source "${PRESSURE_VENV}/bin/activate"
-python -m pip install --upgrade pip
-python -m pip install -e .
-
-# flash-attn must NOT be installed: device.py prefers it when present, while the
-# 4B run used sdpa. That would confound model size with attention kernel.
-python -m pip uninstall -y flash_attn flash-attn 2>/dev/null || true
-
 echo
 echo "=== Versions ==="
+python -V
 python -c "import torch, transformers; print(f'torch {torch.__version__} | transformers {transformers.__version__}')"
-echo "(cuda is False here — login nodes have no GPU. hpc/gpu_check.sbatch tests that.)"
+echo "(cuda is False on a login node — no GPU here. hpc/gpu_check.sbatch tests that.)"
 echo
-echo "=== Environment checks that do not need a GPU ==="
-python scripts/17_cluster_preflight.py --skip-model || true
-echo
-echo "Next: bash hpc/fetch_weights.sh   (~26 GB, slow)"
+echo "Next: bash hpc/fetch_weights.sh"
