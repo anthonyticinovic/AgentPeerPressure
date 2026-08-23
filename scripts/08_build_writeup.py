@@ -38,6 +38,7 @@ def build() -> str:
     dual = _load("dual_directions.json")
     p9 = _load("gate_p_9b.json")
     p4 = _load("gate_p_4b.json")
+    pw = _load("power_9b.json")
 
     payload = {
         "head": ana["headline"],
@@ -66,7 +67,7 @@ def build() -> str:
             "harm": dual["positions"]["task_last"]["auroc"],
         },
         "model": sweep.get("model", "Qwen/Qwen3.5-4B"),
-        "gatep": _gatep(p9, p4),
+        "gatep": _gatep(p9, p4, pw),
     }
     return TEMPLATE.replace("__DATA__", json.dumps(payload))
 
@@ -93,7 +94,7 @@ def _best_test(p9):
             "raw": raw, "holm": fam[key], "n_tests": len(fam)}
 
 
-def _gatep(p9, p4):
+def _gatep(p9, p4, pw=None):
     """Phase 2 for the write-up: the primary contrast, the two secondary outcomes that
     carry the actual pattern, and the descriptors that keep the null honest."""
     if not p9:
@@ -119,6 +120,7 @@ def _gatep(p9, p4):
             {"outcome": "partial compliance", "block": partial9},
         ],
         "family": _best_test(p9),
+        "power": pw,
     }
     if p4:
         f4 = _block(p4, "FULL compliance", "C1b")

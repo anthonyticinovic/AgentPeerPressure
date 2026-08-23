@@ -522,17 +522,29 @@ if(GP){
     `Both outcomes are measured against C0 so the two steps are visible on one scale. `+
     `The endorsement context lifts willingness to act; adding named peers on top adds `+
     `<b>${pp(L[0].block.arms.find(a=>a.arm==='C2').delta-L[0].block.arms.find(a=>a.arm==='C1b').delta)}</b>. `+
-    `Neither step survives family-wide Holm correction, so neither is a claim on its own.`;
+    `Neither step survives family-wide Holm correction, so neither is a claim on its own. `+
+    `Against the pre-registered C1b reference the peer contrast is null on every outcome: `+
+    `full compliance ${pp(c2.delta)}, partial +1.0pp, any tool call +1.0pp.`;
 
-  document.getElementById('gp-power').innerHTML=
-    `With ${GP.n_clusters} base scenarios the design has about 80% power to detect a `+
-    `15pp shift and 41% to detect 10pp. The observed contrast is ${pp(c2.delta)}. `+
-    `<b>A peer-identity effect of 15pp or more is excluded; a small one is not.</b>`;
+  const W=GP.power;
+  document.getElementById('gp-power').innerHTML= W ?
+    `The contrast is ${pp(W.delta_pp)} with a 95% confidence interval of `+
+    `<b>[${W.ci_item_pp[0].toFixed(1)}, ${W.ci_item_pp[1].toFixed(1)}] pp</b> `+
+    `(cluster bootstrap over ${W.n_clusters} base scenarios: `+
+    `[${W.ci_cluster_boot_pp[0].toFixed(1)}, ${W.ci_cluster_boot_pp[1].toFixed(1)}] pp). `+
+    `Simulated power is ${(W.power_by_effect_pp['7.5']*100).toFixed(0)}% at 7.5pp and `+
+    `${(W.power_by_effect_pp['10']*100).toFixed(0)}% at 10pp. `+
+    `<b>This is a tightly bounded null: an effect much above 2pp is excluded.</b>`
+    : '';
 
-  document.getElementById('gp-disc').innerHTML=
-    `The informative sample is smaller than it looks. Only <b>${GP.discordant} of `+
-    `${GP.n_items}</b> items are ever discordant across arms &mdash; the rest give the `+
-    `same verdict in every condition and carry no information about the contrast.`;
+  document.getElementById('gp-disc').innerHTML= W ?
+    `The arms are extremely sticky: only <b>${GP.discordant} of ${GP.n_items}</b> items `+
+    `are ever discordant. In a paired design that is what <em>produces</em> the tight `+
+    `interval rather than undermining it &mdash; and the clustering that would widen it `+
+    `is absent. The ICC of the compliance <em>level</em> is `+
+    `${W.icc_level.toFixed(2)}, but the ICC of the paired <em>difference</em> &mdash; the `+
+    `quantity the test depends on &mdash; is ${W.icc_difference.toFixed(2)}, so the `+
+    `design effect is about 1.` : '';
 
   const F=GP.family;
   document.getElementById('gp-holm').innerHTML=
@@ -545,19 +557,21 @@ if(GP){
   if(GP.scale){
     const s4=GP.scale;
     document.getElementById('gp-scale').innerHTML=
-      `The null replicates across scale. On <b>${s4.model.split('/')[1]}</b> `+
-      `(${s4.n_items} items, ${s4.n_clusters} scenarios) the same contrast is `+
-      `<b>${pp(s4.c2.delta)}</b> (p = ${p3(s4.c2.p)}) &mdash; opposite in sign, `+
-      `equally far from significance.`;
+      `A 4B run points the same way, but it is <em>not</em> a clean replication: it `+
+      `covers ${s4.n_items} of ${GP.n_items} items &mdash; a category-skewed subset, with `+
+      `Disinformation almost absent &mdash; at a lower turn budget. On it the contrast is `+
+      `<b>${pp(s4.c2.delta)}</b> (p = ${p3(s4.c2.p)}), opposite in sign and equally far `+
+      `from significance. Suggestive of scale-independence; not evidence of it.`;
   } else {
     document.getElementById('gp-scale').remove();
   }
 
   document.getElementById('gp-unscored').innerHTML=
-    `<b>Declined judgements are not failures.</b> The judge falls back to a second `+
-    `model and, failing that, marks a criterion unscored rather than scoring it as `+
-    `non-compliance &mdash; which would bias toward the null exactly where content is `+
-    `most harmful. <b>${GP.unscored}</b> rows carry an unscored criterion.`;
+    `<b>Declined judgements are recorded, not hidden.</b> The judge falls back to a `+
+    `second model and, failing that, marks the criterion unscored. The vendored rubric `+
+    `still scores an unscored criterion as False, so such a row is a lower bound and is `+
+    `reported separately rather than pooled. <b>${GP.unscored}</b> rows are affected in `+
+    `this run.`;
 
   document.getElementById('gp-limit-inert').innerHTML=
     `<b>${GP.inert} of ${GP.n_items}</b> items make no tool call in <em>any</em> `+
