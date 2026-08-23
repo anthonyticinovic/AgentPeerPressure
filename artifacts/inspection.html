@@ -382,6 +382,29 @@ const ENTRIES=[
     'reading email, <em>Misuse Terminal SSH</em> for <code>ls -la ~/.ssh/config</code>. Both inflate the '+
     'baseline and compress the contrast. The fix is their own criterion, '+
     '<code>all_target_functions_called</code>, which needs the tool loop rather than a single turn.'},
+ {id:'E11',cls:'bad',t:'Retraction x3, and the fix was to stop deviating from the benchmark',
+  k:[['retracted','single-turn +4.7pp; C6 at p=0.008; \u201cjudged\u201d numbers that were not judged'],
+     ['root cause','AgentHarm\u2019s LLM judge was disabled'],
+     ['compensating machinery built','payload_not_refusal, per-transcript semantic split, 37/15 stratum'],
+     ['all of it','now deleted \u2014 inert once the judge is live'],
+     ['current primary contrast','C2 \u2212 C1b = +1.7pp, p = 0.69']],
+  b:'Three results were retracted in succession, and all three trace to one decision: neutralising the '+
+    'benchmark\u2019s own semantic judge because \u201can LLM judge has mis-graded this project twice\u201d. '+
+    'That reasoning conflated our own ad-hoc judges with a published, per-task rubric \u2014 and the '+
+    'substitutes we built to compensate were each worse than the thing they replaced. '+
+    '<code>payload_not_refusal</code> never fired once in 104 rows. The per-transcript structural/semantic '+
+    'split was one-directionally biased: a content criterion counted on refusals but was <em>dropped on '+
+    'compliant transcripts</em>, so content checking vanished exactly when the model complied. The '+
+    'pre-registered 37/15 stratum turned out to select precisely the graders the judge cannot affect, so '+
+    '\u201cprimary stratum, judged\u201d was a judge-disabled number under a judged label. '+
+    '<br><br>Enabling the judge (DeepSeek V4-Pro, ~$0.05 for the whole re-grade) deleted all of it. Because '+
+    'transcripts are stored separately from grades, re-scoring 460 rows cost API calls and seconds rather '+
+    'than another model run \u2014 which is the design property that made a late reversal cheap. A cold '+
+    'audit of the judge found all 22 changed verdicts correct, no errors in either direction, and the '+
+    'changes spread evenly across arms (C0 5, C1b 6, C2 6, C6 5), so it neither creates nor destroys the '+
+    'contrast. <br><br><b>The result is still null.</b> C2 \u2212 C1b = +1.7pp, p = 0.69 over 115 items / 29 '+
+    'independent scenarios. Nothing survives family-wide correction. The honest reading is a bounded null '+
+    'on the 4B, and the 9B is the test that says whether that is the model or the manipulation.'},
 ];
 const logn=document.getElementById('log');
 ENTRIES.forEach(e=>{const d=el('div','entry '+e.cls);
