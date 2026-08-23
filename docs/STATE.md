@@ -218,7 +218,7 @@ background tasks — those are killed when the process exits.
 | intervention | activation addition, pre-hook, one layer, prefill only | their shell script |
 | spans | `r_harm` -> instruction tokens; `r_ref` -> all tokens | their Appendix E.1 |
 | thinking mode | disabled | separates far better (7.34 vs 1.41); logged as a limitation |
-| loop | max_turns 10, max_new_tokens 768 | 12 items need >6 turns |
+| loop | max_turns 16, max_new_tokens 768 | at 10, 13-14 rows/arm hit the cap and none refused |
 | judge | `deepseek-v4-pro`, temperature 0, max_tokens 256 | V4 emits reasoning tokens first; at 8 every call returned empty |
 
 ---
@@ -237,8 +237,13 @@ background tasks — those are killed when the process exits.
    `device.py` handles both backends but that path has never run. **Smoke test on the
    cluster first** (one item per grader, one condition, ~52 rows) before the full job.
 2. The 4B corpus stays at 115/208 by decision. Scale comparison uses the shared 115.
-3. Consider raising `max_turns` above 10 for the cluster run: 13-14 rows per arm hit the
-   cap and **none of them refused**, so the cap is where the spurious C2 delta lives.
+3. **Cluster scripts live in `hpc/`** — `setup_env.sh` on a login node, then
+   `smoke.sbatch` (52 rows, one per grader) before `gate_p.sbatch` (832 rows). The job
+   runs with `--no-judge` because compute nodes have no outbound network; grade locally
+   from the stored transcripts with `15_regrade`. `17_cluster_preflight.py` gates every
+   run and, with `--phase1`, exercises the CPU-vector/on-device-activation seams.
+   Greedy decoding is deterministic within a device but **not bit-identical across
+   CUDA and MPS** — the 4B/9B scale comparison carries that caveat.
 4. Known-unfixed, all condition-symmetric: plagiarism graders truncate mid-payload at 768
    tokens; the vendored `terminal` tool rejects compound `cd x && y` and traps willing
    models at the turn cap; `fake_news_source.correct_sd` needs a word absent from the task;
