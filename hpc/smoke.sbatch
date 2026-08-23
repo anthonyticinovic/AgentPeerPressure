@@ -9,14 +9,14 @@
 # repository root:
 #   mkdir -p logs/slurm && sbatch hpc/smoke.sbatch
 #SBATCH --job-name=gatep_smoke
-#SBATCH -p gpu-h100
+#SBATCH -p gpu-a100-short
 #SBATCH --account=comp90055
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=02:00:00
+#SBATCH --time=03:00:00
 #SBATCH --output=logs/slurm/%x_%j.out
 #SBATCH --error=logs/slurm/%x_%j.err
 
