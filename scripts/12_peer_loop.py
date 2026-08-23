@@ -31,7 +31,7 @@ from pressure.boards import assert_byte_identical_task, assert_no_task_leakage, 
 from pressure.config import CFG  # noqa: E402
 from pressure.data import agentharm  # noqa: E402
 from pressure.grading import grade, grade_with_judge  # noqa: E402
-from pressure.loop import as_inspect_messages, run_loop  # noqa: E402
+from pressure.loop import Turn, as_inspect_messages, run_loop  # noqa: E402
 from pressure.model import load_model  # noqa: E402
 from pressure.judge import MODEL as JUDGE_MODEL, stats as judge_stats  # noqa: E402
 from pressure.tools import SYSTEM_PROMPT, schemas_for  # noqa: E402
@@ -45,6 +45,16 @@ def _atomic_write(path: Path, payload: dict) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, indent=1))
     tmp.replace(path)
+
+
+def _checkpoint(n: int, total: int, t0: float, out: Path, meta: dict, rows: list) -> None:
+    """Progress line and an atomic snapshot, every 10 rows. Called on the grade-failure
+    path too, so a transcript is never left only in memory."""
+    if n % 10 and n != total:
+        return
+    rate = (time.time() - t0) / n
+    print(f"  {n}/{total}  {rate:.1f}s/item  eta {rate*(total-n)/60:.0f}m", flush=True)
+    _atomic_write(out, {"meta": meta, "rows": rows})
 
 
 def stamp(args, model_name: str) -> dict:
@@ -150,29 +160,38 @@ def main() -> None:
         rows = build(corpus(args.n_items, args.one_per_grader), boards, tok, args.seed)
     print(f"{len(rows)} rows | {len(rows)//len(CONDITIONS)} items x {len(CONDITIONS)} conditions")
 
-    todo = [r for r in rows if "turns" not in r][: args.limit]
+    # A row needs work if it has no transcript, or has one that failed to grade.
+    # Generation and grading are retried independently: a grader or API failure must
+    # never cost a re-run of the expensive half, and must never freeze in as a
+    # non-compliance verdict - that was one-directional, toward the null.
+    todo = [r for r in rows if "turns" not in r or "grade_error" in r][: args.limit]
     t0 = time.time()
     for n, r in enumerate(todo, 1):
-        turns = run_loop(
-            model, tok,
-            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": r["user_text"]}],
-            schemas_for(r["target_functions"]),
-            max_turns=args.max_turns, max_new_tokens=args.max_new_tokens,
-        )
+        if "turns" in r:  # regrade-only pass over a transcript already on disk
+            turns = [Turn(text=t["text"], calls=t["calls"], results=t["results"],
+                          truncated=t.get("truncated", False)) for t in r["turns"]]
+        else:
+            turns = run_loop(
+                model, tok,
+                [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": r["user_text"]}],
+                schemas_for(r["target_functions"]),
+                max_turns=args.max_turns, max_new_tokens=args.max_new_tokens,
+            )
+            # Persist the transcript *before* grading. On a cluster the grader may be
+            # the only thing that can fail (no outbound network for the judge), and
+            # discarding hours of generation because scoring failed is unrecoverable.
+            r["turns"] = [{"text": t.text, "calls": t.calls, "results": t.results, "truncated": t.truncated} for t in turns]
+            r["n_turns"] = len(turns)
+            r["called"] = [c["function"] for t in turns for c in t.calls]
+            r["cut_mid_call"] = any(t.cut_mid_call for t in turns)
         try:
             sc = (grade if args.no_judge else grade_with_judge)(r, as_inspect_messages(turns))
             r.pop("grade_error", None)
         except Exception as exc:
-            # Record and move on, but do NOT write `turns`: the row stays in `todo`
-            # so a later pass retries it. Previously a transient API failure was
-            # frozen in as non-compliance forever - one-directional, toward the null.
             r["grade_error"] = f"{type(exc).__name__}: {exc}"
             print(f"  grade failed ({r['cluster']}/{r['id']}/{r['condition']}): {exc}", flush=True)
+            _checkpoint(n, len(todo), t0, args.out, meta, rows)
             continue
-        r["turns"] = [{"text": t.text, "calls": t.calls, "results": t.results, "truncated": t.truncated} for t in turns]
-        r["n_turns"] = len(turns)
-        r["called"] = [c["function"] for t in turns for c in t.calls]
-        r["cut_mid_call"] = any(t.cut_mid_call for t in turns)
         # Write the judged fields under the same names 15_regrade uses, so the
         # analysis detects judged data identically however it was produced. Writing
         # only `full_compliance` made a judge-on run analyse as judge-off.
@@ -183,10 +202,7 @@ def main() -> None:
         r["semantic"] = sc.semantic if sc else {}
         r["judged"] = not args.no_judge
         r["unscored_criteria"] = sc.unscored if sc else []
-        if n % 10 == 0 or n == len(todo):
-            rate = (time.time() - t0) / n
-            print(f"  {n}/{len(todo)}  {rate:.1f}s/item  eta {rate*(len(todo)-n)/60:.0f}m", flush=True)
-            _atomic_write(args.out, {"meta": meta, "rows": rows})
+        _checkpoint(n, len(todo), t0, args.out, meta, rows)
     _atomic_write(args.out, {"meta": meta, "rows": rows})
     if not args.no_judge:
         js = judge_stats()

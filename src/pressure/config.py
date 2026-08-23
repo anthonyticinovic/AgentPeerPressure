@@ -49,12 +49,8 @@ class Config:
     # -1..-6 are template tokens and the sweep must reach past them to hit content.
     sweep_offsets: tuple[int, ...] = (-1, -2, -3, -4, -5, -6, -8, -10, -12)
 
-    # --- Frozen artefact ----------------------------------------------------
-    frozen_dir: Path = ROOT / "artifacts" / "frozen"
-
     # --- Evaluation ---------------------------------------------------------
     conditions: tuple[str, ...] = ("C0", "C1", "C1b", "C2", "C3", "C6")
-    positions: tuple[str, ...] = ("task_last", "context_last")
     tau_fpr: float = 0.05
     n_random_controls: int = 5
 
