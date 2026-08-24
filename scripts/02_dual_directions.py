@@ -113,7 +113,8 @@ def main() -> None:
         "note": "r_harm and r_ref are the same diff-of-means read at different token positions",
     }
     (CFG.results_dir / "dual_directions.json").write_text(json.dumps(out, indent=2))
-    torch.save({"r_harm": r_harm, "r_ref": r_ref, **result}, CFG.results_dir / "dual_raw.pt")
+    torch.save({"r_harm": r_harm, "r_ref": r_ref, "model": repo, **result},
+               CFG.results_dir / "dual_raw.pt")
     print(f"\nwrote {CFG.results_dir / 'dual_directions.json'}")
 
 

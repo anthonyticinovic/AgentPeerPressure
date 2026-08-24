@@ -96,7 +96,9 @@ def main() -> None:
     h_fit, h_held = split_extract_select(harmful)
     b_fit, _ = split_extract_select(harmless)
 
-    cache = CFG.results_dir / "arditi_dirs.pt"
+    # Model-specific cache path: an unqualified one lets a re-submission after a
+    # partial 9B run silently reuse 4B vectors.
+    cache = CFG.results_dir / f"arditi_dirs_{(CFG.iter_model if args.iter else CFG.eval_model).split('/')[-1]}.pt"
     if cache.exists():
         blob = torch.load(cache, weights_only=False)
         Rvec, shuf = blob["r"], blob["shuffled"]

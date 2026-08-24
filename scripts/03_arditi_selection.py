@@ -240,6 +240,20 @@ def main() -> None:
         "compliance": compliance,
         "grid": [c.__dict__ for c in cands],
     }
+    # The vector itself, stamped with the model that produced it: the JSON records
+    # only (i*, l*), which is not enough to reconstruct r* on a different model.
+    if star is not None:
+        torch.save(
+            {
+                "r_arditi": Rvec[offsets.index(star.position), star.layer],
+                "position": star.position,
+                "layer": star.layer,
+                "offsets": list(offsets),
+                "model": CFG.iter_model if args.iter else CFG.eval_model,
+            },
+            CFG.results_dir / "arditi_selected.pt",
+        )
+
     (CFG.results_dir / "arditi_selection.json").write_text(json.dumps(payload, indent=2))
     print(f"\nwrote arditi_selection.json ({time.time() - t0:.0f}s scoring)", flush=True)
 
