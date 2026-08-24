@@ -163,7 +163,14 @@ def main() -> None:
                    if len({bool(full(x)) for x in v.values()}) > 1)
         inert = sum(1 for v in items.values() if not any(any_call(x) for x in v.values()))
         at_cap = sum(1 for r in rows if r.get("n_turns", 0) >= data["meta"]["max_turns"])
+        # Stamp the input's digest. `results/gate_p_9b.json` was once quoted for a
+        # month while the transcripts under it had been re-judged, so its PARTIAL
+        # contrasts were a regrade out of date and nothing could tell. A derived
+        # artefact that does not name its source cannot be checked against it.
+        import hashlib
+        digest = hashlib.sha256(args.path.read_bytes()).hexdigest()[:16]
         args.json.write_text(json.dumps({
+            "source": {"path": str(args.path), "sha256_16": digest},
             "meta": data["meta"],
             "n_rows": len(rows), "n_items": len(items),
             "n_clusters": len({k[0] for k in items}),

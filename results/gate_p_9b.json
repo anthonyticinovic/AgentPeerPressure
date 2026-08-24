@@ -1,0 +1,210 @@
+{
+ "source": {
+  "path": "results/peer_loop_9b_judged.json",
+  "sha256_16": "54834cb7a56cc328"
+ },
+ "meta": {
+  "model": "Qwen/Qwen3.5-9B",
+  "conditions": [
+   "C0",
+   "C1b",
+   "C2",
+   "C6"
+  ],
+  "seed": 0,
+  "max_turns": 16,
+  "max_new_tokens": 768,
+  "n_items": null,
+  "git": "59b7e58",
+  "cmd": "scripts/12_peer_loop.py --conditions C0 C1b C2 C6 --max-turns 16 --no-judge --out results/peer_loop_9b.json",
+  "judge": "deepseek-v4-pro",
+  "one_per_grader": false,
+  "started": "2026-08-23T09:46:53+00:00"
+ },
+ "n_rows": 832,
+ "n_items": 208,
+ "n_clusters": 52,
+ "judged": true,
+ "blocks": [
+  {
+   "label": "FULL compliance",
+   "ref": "C1b",
+   "n": 208,
+   "arms": [
+    {
+     "arm": "C0",
+     "rate": 0.1875,
+     "delta": -1.9230769230769231,
+     "gain": 8,
+     "loss": 12,
+     "p": 0.5034446716308594,
+     "holm": 1.0,
+     "cluster_p": 0.75390625
+    },
+    {
+     "arm": "C2",
+     "rate": 0.1971153846153846,
+     "delta": -0.9615384615384616,
+     "gain": 3,
+     "loss": 5,
+     "p": 0.7265625,
+     "holm": 1.0,
+     "cluster_p": 0.6875
+    },
+    {
+     "arm": "C6",
+     "rate": 0.1971153846153846,
+     "delta": -0.9615384615384616,
+     "gain": 5,
+     "loss": 7,
+     "p": 0.7744140625,
+     "holm": 1.0,
+     "cluster_p": 0.7265625
+    }
+   ],
+   "base_rate": 0.20673076923076922,
+   "n_clusters": 52
+  },
+  {
+   "label": "FULL compliance",
+   "ref": "C0",
+   "n": 208,
+   "arms": [
+    {
+     "arm": "C1b",
+     "rate": 0.20673076923076922,
+     "delta": 1.9230769230769231,
+     "gain": 12,
+     "loss": 8,
+     "p": 0.5034446716308594,
+     "holm": 1.0,
+     "cluster_p": 0.75390625
+    },
+    {
+     "arm": "C2",
+     "rate": 0.1971153846153846,
+     "delta": 0.9615384615384616,
+     "gain": 11,
+     "loss": 9,
+     "p": 0.8238029479980469,
+     "holm": 1.0,
+     "cluster_p": 1.0
+    },
+    {
+     "arm": "C6",
+     "rate": 0.1971153846153846,
+     "delta": 0.9615384615384616,
+     "gain": 9,
+     "loss": 7,
+     "p": 0.803619384765625,
+     "holm": 1.0,
+     "cluster_p": 1.0
+    }
+   ],
+   "base_rate": 0.1875,
+   "n_clusters": 52
+  },
+  {
+   "label": "PARTIAL (>=half of structural criteria)",
+   "ref": "C0",
+   "n": 208,
+   "arms": [
+    {
+     "arm": "C1b",
+     "rate": 0.3557692307692308,
+     "delta": 4.8076923076923075,
+     "gain": 14,
+     "loss": 4,
+     "p": 0.0308837890625,
+     "holm": 0.061767578125,
+     "cluster_p": 0.057373046875
+    },
+    {
+     "arm": "C2",
+     "rate": 0.36538461538461536,
+     "delta": 5.769230769230769,
+     "gain": 17,
+     "loss": 5,
+     "p": 0.01690053939819336,
+     "holm": 0.05070161819458008,
+     "cluster_p": 0.049041748046875
+    },
+    {
+     "arm": "C6",
+     "rate": 0.32211538461538464,
+     "delta": 1.4423076923076923,
+     "gain": 9,
+     "loss": 6,
+     "p": 0.60723876953125,
+     "holm": 0.60723876953125,
+     "cluster_p": 0.5810546875
+    }
+   ],
+   "base_rate": 0.3076923076923077,
+   "n_clusters": 52
+  },
+  {
+   "label": "any tool call (diagnostic only, not compliance)",
+   "ref": "C0",
+   "n": 208,
+   "arms": [
+    {
+     "arm": "C1b",
+     "rate": 0.4375,
+     "delta": 4.326923076923077,
+     "gain": 13,
+     "loss": 4,
+     "p": 0.049041748046875,
+     "holm": 0.09808349609375,
+     "cluster_p": 0.09228515625
+    },
+    {
+     "arm": "C2",
+     "rate": 0.44711538461538464,
+     "delta": 5.288461538461538,
+     "gain": 15,
+     "loss": 4,
+     "p": 0.0192108154296875,
+     "holm": 0.0576324462890625,
+     "cluster_p": 0.057373046875
+    },
+    {
+     "arm": "C6",
+     "rate": 0.42788461538461536,
+     "delta": 3.3653846153846154,
+     "gain": 11,
+     "loss": 4,
+     "p": 0.11846923828125,
+     "holm": 0.11846923828125,
+     "cluster_p": 0.0654296875
+    }
+   ],
+   "base_rate": 0.3942307692307692,
+   "n_clusters": 52
+  }
+ ],
+ "family_holm": {
+  "PARTIAL (>=half of structural criteria)|C2-C0": 0.2028064727783203,
+  "any tool call (diagnostic only, not compliance)|C2-C0": 0.2113189697265625,
+  "PARTIAL (>=half of structural criteria)|C1b-C0": 0.308837890625,
+  "any tool call (diagnostic only, not compliance)|C1b-C0": 0.441375732421875,
+  "any tool call (diagnostic only, not compliance)|C6-C0": 0.94775390625,
+  "FULL compliance|C0-C1b": 1.0,
+  "FULL compliance|C1b-C0": 1.0,
+  "PARTIAL (>=half of structural criteria)|C6-C0": 1.0,
+  "FULL compliance|C2-C1b": 1.0,
+  "FULL compliance|C6-C1b": 1.0,
+  "FULL compliance|C6-C0": 1.0,
+  "FULL compliance|C2-C0": 1.0
+ },
+ "discordant_items": 26,
+ "inert_items": 108,
+ "rows_at_turn_cap": 33,
+ "unscored_rows": 0,
+ "conditions": [
+  "C0",
+  "C1b",
+  "C2",
+  "C6"
+ ]
+}
