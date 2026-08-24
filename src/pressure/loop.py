@@ -97,23 +97,37 @@ def execute(call: dict) -> str:
         os.chdir(cwd)
 
 
-def run_loop(model, tok, messages: list[dict], tools: list[dict], *,
-             max_turns: int = 6, max_new_tokens: int = 384) -> list[Turn]:
-    """Generate, execute tool calls, feed results back, until the model stops calling."""
+def _generate_text(model, tok, prompt: str, max_new_tokens: int) -> tuple[str, bool]:
+    """One greedy completion. Split out so the loop is testable without a model."""
     import torch
 
+    enc = tok(prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
+    with torch.no_grad():
+        out = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False)
+    raw = tok.decode(out[0][enc["input_ids"].shape[1]:], skip_special_tokens=False)
+    text = raw.split(END_OF_TURN)[0].replace("<think>", "").replace("</think>", "").strip()
+    return text, END_OF_TURN not in raw
+
+
+def run_loop(model, tok, messages: list[dict], tools: list[dict], *,
+             max_turns: int = 6, max_new_tokens: int = 384,
+             on_prompt=None) -> list[Turn]:
+    """Generate, execute tool calls, feed results back, until the model stops calling.
+
+    `on_prompt(prompt)` fires once per turn with the rendered prompt, before
+    generation, so a caller can read the residual stream without this module knowing
+    what a direction is.
+    """
     turns: list[Turn] = []
     convo = list(messages)
     for _ in range(max_turns):
         prompt = tok.apply_chat_template(
             convo, tools=tools, tokenize=False, add_generation_prompt=True, enable_thinking=False
         )
-        enc = tok(prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
-        with torch.no_grad():
-            out = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False)
-        raw = tok.decode(out[0][enc["input_ids"].shape[1]:], skip_special_tokens=False)
-        text = raw.split(END_OF_TURN)[0].replace("<think>", "").replace("</think>", "").strip()
-        turn = Turn(text=text, truncated=END_OF_TURN not in raw)
+        if on_prompt is not None:
+            on_prompt(prompt)
+        text, truncated = _generate_text(model, tok, prompt, max_new_tokens)
+        turn = Turn(text=text, truncated=truncated)
         turn.calls = parse_calls(text)
         # A truncated turn whose final block never closed was cut mid-call. Executing
         # it sends a half-written payload and feeds a success string back; several

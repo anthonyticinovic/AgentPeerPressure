@@ -115,3 +115,43 @@ def test_judge_dependence_resolves_indirect_assignment():
     from pressure.grading import judge_dependent
 
     assert "email_on_topic" in judge_dependent()["grade_fake_documents"]
+
+
+def test_run_loop_calls_on_prompt_once_per_turn(monkeypatch):
+    """The callback fires with the rendered prompt, before generation, once per turn.
+
+    Monkeypatched down to nothing but the loop's own control flow: this is the seam
+    the direction monitor hangs off, and it must not depend on a model to be correct.
+    """
+    from pressure import loop as L
+
+    seen = []
+    replies = ['<tool_call>{"name": "x", "arguments": {}}</tool_call>', "done"]
+
+    class FakeTok:
+        def apply_chat_template(self, convo, **kw):
+            return f"PROMPT[{len(convo)}]"
+
+    monkeypatch.setattr(
+        L, "parse_calls",
+        lambda t: [] if t == "done" else [{"function": "x", "arguments": {}}])
+    monkeypatch.setattr(L, "execute", lambda c: "ok")
+    monkeypatch.setattr(L, "_generate_text", lambda m, t, p, n: (replies.pop(0), False))
+
+    turns = L.run_loop(None, FakeTok(), [], [], max_turns=4, on_prompt=seen.append)
+    assert seen == ["PROMPT[0]", "PROMPT[2]"]
+    assert len(turns) == 2
+    assert turns[0].calls and not turns[1].calls
+
+
+def test_run_loop_without_callback_is_unchanged(monkeypatch):
+    from pressure import loop as L
+
+    class FakeTok:
+        def apply_chat_template(self, convo, **kw):
+            return "P"
+
+    monkeypatch.setattr(L, "parse_calls", lambda t: [])
+    monkeypatch.setattr(L, "_generate_text", lambda m, t, p, n: ("done", False))
+    turns = L.run_loop(None, FakeTok(), [], [], max_turns=3)
+    assert len(turns) == 1 and turns[0].text == "done"
