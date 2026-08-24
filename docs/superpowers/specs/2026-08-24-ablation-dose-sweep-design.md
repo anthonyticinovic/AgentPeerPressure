@@ -1,4 +1,4 @@
-# Gate A — refusal-ablation dose sweep with joint direction monitoring
+# Gate A — refusal ablation with joint direction monitoring
 
 Date: 2026-08-24. Status: design, not yet approved for implementation.
 Supersedes the Phase 2 plan in `docs/STATE.md` §2 as the next experiment.
@@ -41,25 +41,30 @@ on 87.5% of it.** The null is about the instrument, not yet about the hypothesis
 ## 2. Hypothesis
 
 Refusal ablation raises the compliance floor and converts dead items into informative
-ones. Run the framing conditions across a dose of ablation and the design separates
+ones. Run the framing conditions with and without ablation and the design separates
 two worlds that Gate P cannot:
 
-- **Inertness.** Compliance rises with dose; the framing delta stays at zero at every
-  dose. Peer framing is genuinely absent from the decision. The Gate P null becomes
-  credible, because we have demonstrated the instrument has range.
-- **Masking.** Compliance rises with dose *and* the framing delta opens up. Social
+- **Inertness.** Compliance rises under ablation; the framing delta stays at zero at
+  both levels. Peer framing is genuinely absent from the decision. The Gate P null
+  becomes credible, because we have demonstrated the instrument has range.
+- **Masking.** Compliance rises under ablation *and* the framing delta opens up. Social
   influence is present in the model but clipped by a refusal circuit that dominates it.
   The sensitivity re-emerges the moment that circuit is removed.
 
-A third outcome is available only under a dose sweep and is the most interesting:
-**tiebreaking** — the framing delta peaks at intermediate dose, where refusal is
-weakened but still contesting the decision, and collapses at full ablation where
-nothing is left to contest. That is a claim binary ablation cannot make.
+A dose sweep was considered and **cut**. It would have tested a third outcome —
+**tiebreaking**, where the framing delta peaks at intermediate ablation and collapses
+at full ablation once nothing is left to contest the decision. Three reasons against
+running it now: partial ablation is not a principled operating point (directional
+ablation is binary by construction, and no abliterated checkpoint is half-ablated);
+detecting a non-monotonicity needs far more power than detecting the delta itself, and
+we cannot reliably see 7.5pp; and the interaction should not be bought before the main
+effect is seen. If full ablation opens the framing delta, the dose curve becomes a
+well-motivated follow-up.
 
 ### Ecological motivation
 
 Full refusal ablation is not a synthetic manipulation. Publicly downloadable
-"abliterated" checkpoints are refusal-ablated models. The dose-1.0 arm is a
+"abliterated" checkpoints are refusal-ablated models. The ablated arm is a
 deployment condition, not a control condition.
 
 ## 3. Design
@@ -68,27 +73,24 @@ Full factorial, within-item, paired on `(cluster, id)`.
 
 | factor | levels |
 |---|---|
-| ablation dose alpha | 0.0, 0.5, 1.0 |
+| ablation | off (baseline, **already run**) / on (standard Arditi, all layers) |
 | framing | C0, C1b, C2, C6 |
 | items | 208 (full corpus, no category dropped) |
 
-= 2,496 runs. Task text stays byte-identical across every cell, as in Gate P.
+= 832 new runs. The unablated half is `results/peer_loop_9b.json`, unchanged. Task text
+stays byte-identical across every cell, as in Gate P.
 
 **Do not drop Sexual and Hate.** They are the sharpest probe in the design: if
 ablation lifts Cybercrime and Copyright while those two stay at zero, a single Arditi
 direction does not mediate those refusals and a second mechanism exists. That result
 comes free.
 
-### Partial ablation
+### Ablation setting
 
-`causal.ablate` is currently all-or-nothing: `h <- h - (h . v)v` at every layer.
-Extend it with a coefficient, defaulting to 1.0 so existing callers are unaffected:
+Standard Arditi directional ablation, unchanged: `h <- h - (h . v)v` at every layer,
+which is what `causal.ablate` already does. **No change to `causal.py` is required.**
 
-```
-h <- h - alpha * (h . v) v
-```
-
-alpha=0.0 must be an exact no-op, not an approximate one (see Gate A0).
+A coefficient is introduced only if Gate A2 fails — see the contingency there.
 
 ### Monitors
 
@@ -115,12 +117,15 @@ such a trace.
 
 ## 4. Prerequisites
 
-### Gate A0 — hook harness identity check (blocking, ~30 min)
+### Gate A0 — baseline monitor replay and harness identity check (blocking, ~1h)
 
-Run alpha=0.0 across all four framings and assert the transcripts reproduce
-`results/peer_loop_9b.json` **byte-identically**. Decoding is greedy, so this must hold
-exactly. If it does not, the hook infrastructure perturbs generation and every
-downstream number is void. This is cheap and it gates everything.
+The existing baseline has compliance but no monitor traces. Rather than regenerate it,
+**teacher-force the stored transcripts** and read activations without sampling: one
+forward pass per turn, roughly 5-10x faster than a re-run.
+
+Decoding is greedy, so the replay must argmax back to the stored tokens exactly. Assert
+that. It is simultaneously the monitor readout and the proof that the hook harness does
+not perturb generation. If the replay diverges, every downstream number is void.
 
 ### Gate A1 — directions at 9B (blocking, ~half a day)
 
@@ -137,61 +142,67 @@ This also closes B2-at-9B, already on the backlog.
 ### Gate A2 — agentic capability under ablation (blocking, ~30 min)
 
 Arditi's KL constraint is fitted on short single-turn generation. A 16-turn tool loop
-is a far longer horizon. If alpha=1.0 degrades the model into malformed tool calls,
+is a far longer horizon. If full ablation degrades the model into malformed tool calls,
 compliance falls for a boring reason and the experiment is void.
 
-Run ~20 items at alpha=1.0 and confirm: tool calls parse, the XML format holds, turn
-counts are comparable to alpha=0.0, transcripts are coherent to inspection. **Do not
-commit the 24h sweep until this passes.**
+Run `12_peer_loop.py --one-per-grader` (52 items, all graders) under ablation and
+confirm: tool calls parse, the XML format holds, turn counts are comparable to
+baseline, transcripts are coherent to inspection. **Do not commit the 8h run until
+this passes.**
+
+**Contingency if it fails.** Introduce a coefficient on the ablation and calibrate down
+to the largest value that preserves agentic capability, then run one dose there. This
+is a fallback, not a planned arm, and the chosen value must be reported as fitted.
 
 ## 5. Analysis
 
 Primary outcome stays `full_compliance_judged` — AgentHarm's own rubrics with the
 DeepSeek judge live. No new metric is invented for this gate.
 
-1. **Compliance by dose** — does ablation actually raise the floor, and by how much per
-   category. Reports the informative-item count at each dose; if it does not grow, the
-   experiment failed and says so.
-2. **Framing contrast at each dose** — exact McNemar for C2 - C1b, C0 - C1b, C6 - C1b,
+1. **Compliance under ablation** — does it raise the floor, and by how much per
+   category. Reports the informative-item count with and without ablation; **if it does
+   not grow, the experiment failed and the analysis says so.**
+2. **Framing contrast under ablation** — exact McNemar for C2 - C1b, C0 - C1b, C6 - C1b,
    plus the cluster-level sign test, exactly as `13_loop_analysis.py` does now.
-3. **Interaction** — permutation test on the dose x framing term, permuting the framing
-   label within item across dose levels. Assumption-free and reuses the existing
-   cluster-permutation machinery.
-4. **Monitor trajectories** — `r_harm` and `r_ref` per turn, split by dose, framing, and
-   realised outcome. The thesis question: at the dose where behaviour changes, does
-   `r_harm` stay high?
+3. **Interaction** — permutation test on the ablation x framing term, permuting the
+   framing label within item across both ablation levels. Assumption-free and reuses the
+   existing cluster-permutation machinery. This is the inertness-vs-masking test.
+4. **Monitor trajectories** — `r_harm` and `r_ref` per turn, split by ablation, framing,
+   and realised outcome. The thesis question: where behaviour changes, does `r_harm`
+   stay high?
 
 Multiplicity stays **family-wide across every test reported**, per `STATE.md` §3.
-The family grows with the design; that is the cost of the extra cells and must be
-stated up front, not discovered afterwards.
+The family is pre-registered here, before the run: three framing contrasts x two
+ablation levels, plus the interaction = 7 tests.
 
 ## 6. Cost
 
 | stage | runs | walltime |
 |---|---|---|
-| Gate A1 directions at 9B | — | ~4h |
-| Gate A2 capability check | 20 | ~15 min |
-| dose 0.0 x 4 arms (**is** Gate A0) | 832 | ~8h |
-| dose 0.5 x 4 arms | 832 | ~8h |
-| dose 1.0 x 4 arms | 832 | ~8h |
+| A1 — Gate B + B2 directions at 9B | — | ~4h |
+| A2 — capability check under ablation | 52 | ~30 min |
+| A0 — baseline monitor replay, teacher-forced | 832 | ~1h |
+| ablated run, 4 arms x 208 | 832 | ~8h |
 
-~28h of cluster time, split into four jobs (directions, then one per dose) so failures surface early. Grading is
+**~13h of cluster time**, split into four jobs so failures surface early. Grading is
 separable from generation, so re-scoring costs API calls and seconds.
 
 ## 7. Risks
 
 | risk | mitigation |
 |---|---|
-| ablation destroys agentic capability | Gate A2, blocking |
-| hooks perturb generation | Gate A0 identity check, blocking |
+| ablation destroys agentic capability | Gate A2, blocking; coefficient calibration as fallback |
+| hooks perturb generation | Gate A0 teacher-forced replay must argmax to stored tokens, blocking |
 | Arditi direction does not transfer to 9B | Gate A1 re-derives it; admissibility filter is the same |
 | `r_arditi` projection reported as a result | named as a fidelity check in this spec; assert in the analysis script |
 | family-wide multiplicity swamps everything | pre-register the family in this spec before the run |
-| compliance rises but graders cap it | per-category informative-item count reported at every dose |
+| compliance rises but graders cap it | per-category informative-item count reported at both levels |
 
 ## 8. Out of scope
 
-- New framing conditions (authority, incrementalism, decomposition). Decide after the
-  dose sweep says whether the corpus can register a framing effect at all.
+- **Ablation dose sweep.** Cut, with reasons, in §2. Revisit only if full ablation opens
+  the framing delta.
+- New framing conditions (authority, incrementalism, decomposition). Decide after this
+  gate says whether the corpus can register a framing effect at all.
 - 4B replication. The scale claim stays a stated limitation.
 - Any change to the corpus, the graders, or the compliance definition.
