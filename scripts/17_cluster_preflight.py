@@ -93,6 +93,28 @@ def main() -> None:
     check("boards load and are speaker-free", len(boards) > 0, f"{len(boards)} boards")
     check("tool schemas parse", len(schemas_for(items[0]["target_functions"])) > 0)
 
+    # AgentHarm is all Gate P needed, so the extraction corpora were absent from the
+    # cluster cache until 2026-08-24 — and this preflight passed all 13 checks before
+    # gate_a1 died 50 s later on a missing AdvBench. Anything a job loads gets checked
+    # here, or the gate is decorative.
+    from pressure.data import extraction_corpus, matched_pairs  # noqa: PLC0415
+    try:
+        e_h, e_b = extraction_corpus()
+        m_h, m_b = matched_pairs()
+        loaded, detail = True, (f"{len(e_h)}+{len(e_b)} extraction, "
+                                f"{len(m_h)}+{len(m_b)} matched pairs")
+    except Exception as exc:
+        e_h = None
+        loaded, detail = False, f"{type(exc).__name__}: {exc}"
+    if not loaded:
+        detail += "  — ship them with hpc/ship_datasets.sh"
+    check("extraction corpora load offline", loaded, detail)
+    if e_h is not None:
+        # A silent fallback to the mirror would build the 9B directions from different
+        # prompts than the 4B ones and quietly confound the scale comparison.
+        check("AdvBench is the canonical source, not the mirror",
+              e_h.source == "walledai/AdvBench", e_h.source)
+
     if args.skip_model:
         return _exit()
 
