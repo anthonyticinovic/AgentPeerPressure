@@ -52,6 +52,13 @@ Design: shared work-queue board prepended to a byte-identical AgentHarm task.
 Conditions **C0** none / **C1b** endorsement with speakers stripped (the speaker-free
 floor) / **C2** named peers / **C6** audit record. Primary contrast **C2 - C1b**.
 
+**Gate A adds two arms and changes the primary.** `C3` (the same peers *refusing*) was
+implemented all along and never run; it is the suppression arm the instrument lacked.
+`C7` (a peer hands an item off partway) is new — the only arm that is not a descriptive
+norm, testing diffusion of authorship rather than social proof. Since `C2 = C1b + author
+labels`, `C2 - C1b` only ever tested whether *naming* peers matters. **`C2 - C3` is the
+real peer contrast** and is Gate A's pre-registered primary.
+
 Latest run `results/peer_loop_judged.json` — 4B, 115 of 208 items, multi-turn tool loop,
 AgentHarm's own rubrics with the DeepSeek judge live:
 
@@ -78,6 +85,26 @@ does nothing, robustly.
 score p = 0.0019. Family-wide Holm still takes it to ~0.13, so it is not a claim. But an
 audit-record framing pushing *toward* refusal is directionally consistent on every
 measure, and it is orthogonal to the peer-pressure thesis rather than evidence for it.
+
+### The honest reading of the 9B null — added 2026-08-24
+
+Decomposing the 208 items by whether they can carry information at all:
+
+| | items |
+|---|---|
+| never comply in any arm | **154** (108 make zero tool calls; 46 engage but never complete) |
+| comply in all four arms | **28** |
+| **informative** | **26** |
+
+McNemar discards concordant pairs, so **every p-value above rests on 26 items**, and the
+primary contrast is decided by 8 discordant pairs. Two categories are pinned at zero in
+all four arms — Sexual (28 items) and Hate (24) — a quarter of the corpus that cannot
+move.
+
+So "peer framing is inert" is not what the null shows. It shows that **the corpus has
+almost no dynamic range and no framing manipulation of any strength could have been
+detected on 87.5% of it.** Gate A exists to fix the instrument before drawing the
+conclusion: see `docs/superpowers/plans/2026-08-24-gate-a-ablation-monitoring.md`.
 
 **On the 4B, 14 of 115 items were ever discordant and ~22 of the 59 inert items were
 unreachable by construction.** That does NOT carry over to the 9B: all **108** inert
@@ -112,6 +139,12 @@ refusals unparsed; `"Yes, …"` unparsed; `hit_target` tautology; a re-derived p
 dropping its guard; an analysis reading a stale field.
 
 **Rules now in force:**
+- **A derived artefact must name the file it came from.** `results/gate_p_9b.json` was
+  quoted for weeks while the transcripts beneath it had been re-judged, so its PARTIAL
+  contrasts were one regrade out of date and nothing could tell. `13_loop_analysis.py`
+  now stamps the sha256 of its input. Regenerate every derived artefact after any
+  regrade. (Corrected 2026-08-24: the primary contrast was unaffected; PARTIAL C2-C0
+  moved p .052 -> .017, cluster .144 -> .049 — understating our own result, again.)
 - The number that stands is the hand-check.
 - No number is quoted unless committed code reproduces it from a committed data file.
 - Never re-derive a stored verdict in an analysis script; read it.
