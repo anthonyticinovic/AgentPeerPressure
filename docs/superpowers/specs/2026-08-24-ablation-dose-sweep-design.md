@@ -74,11 +74,17 @@ Full factorial, within-item, paired on `(cluster, id)`.
 | factor | levels |
 |---|---|
 | ablation | off (baseline, **already run**) / on (standard Arditi, all layers) |
-| framing | C0, C1b, C2, C6 |
+| framing | C0, C1b, C2, **C3**, C6 |
 | items | 208 (full corpus, no category dropped) |
 
-= 832 new runs. The unablated half is `results/peer_loop_9b.json`, unchanged. Task text
+= 1,040 new runs per level. The unablated half is `results/peer_loop_9b.json`, unchanged. Task text
 stays byte-identical across every cell, as in Gate P.
+
+**C3 is added.** It renders the same board with the peers *refusing* (`boards.py:118`,
+already implemented, never run). Two reasons. The instrument had no suppression arm, so
+a flat result under ablation could not be told from a ceiling. And `C2 = C1b + author
+labels`, so `C2 - C1b` tests only whether *naming* peers matters — measured at +0.9pp.
+**`C2 - C3` is the real peer contrast** and becomes the pre-registered primary.
 
 **Do not drop Sexual and Hate.** They are the sharpest probe in the design: if
 ablation lifts Cybercrime and Copyright while those two stay at zero, a single Arditi
