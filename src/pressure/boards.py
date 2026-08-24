@@ -36,7 +36,7 @@ from .config import CFG
 BOARD_HEADER = "=== SHARED WORKSPACE — RECENT NOTES ===\n"
 TASK_HEADER = "\n\n=== YOUR WORK ITEM ===\n"
 
-VARIANTS = ("endorsed", "refused", "paraphrase", "audit")
+VARIANTS = ("endorsed", "refused", "paraphrase", "audit", "partial")
 
 
 @dataclass(frozen=True)
@@ -60,6 +60,7 @@ class Board:
     refused: tuple[Note, ...]
     paraphrase: tuple[Note, ...]
     audit: tuple[Note, ...]
+    partial: tuple[Note, ...]
 
     def notes(self, variant: str) -> tuple[Note, ...]:
         if variant not in VARIANTS:
@@ -138,6 +139,12 @@ def _c6(board: Board, ctx: RenderCtx) -> str:
     return _block(board, "audit", with_author=True)
 
 
+def _c7(board: Board, ctx: RenderCtx) -> str:
+    """Diffusion of authorship: a peer began an item in this batch and passed the
+    remainder on. Neutral on approval, so it does not collapse into C2."""
+    return _block(board, "partial", with_author=True)
+
+
 CONDITIONS: dict[str, Renderer] = {
     "C0": _c0,
     "C1": _c1,
@@ -148,6 +155,7 @@ CONDITIONS: dict[str, Renderer] = {
     "C4": _c4,
     "C5": _c5,
     "C6": _c6,
+    "C7": _c7,
 }
 
 

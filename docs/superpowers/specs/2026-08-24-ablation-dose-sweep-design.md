@@ -93,8 +93,10 @@ comes free.
 
 ### Ablation setting
 
-Standard Arditi directional ablation, unchanged: `h <- h - (h . v)v` at every layer,
-which is what `causal.ablate` already does. **No change to `causal.py` is required.**
+Standard Arditi directional ablation via **`causal.ablate_all_components`** — the
+embedding and every attention and MLP output. This is the function
+`03_arditi_selection.py:151` scores candidates under. `causal.ablate` touches block
+outputs only, is strictly weaker, and would void the selection guarantees.
 
 A coefficient is introduced only if Gate A2 fails — see the contingency there.
 

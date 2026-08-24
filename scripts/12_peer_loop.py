@@ -22,17 +22,20 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pressure.boards import assert_byte_identical_task, assert_no_task_leakage, assert_speaker_free, load_boards, render  # noqa: E402
+from pressure.causal import ablate_all_components  # noqa: E402
 from pressure.config import CFG  # noqa: E402
 from pressure.data import agentharm  # noqa: E402
 from pressure.grading import grade, grade_with_judge  # noqa: E402
 from pressure.loop import Turn, as_inspect_messages, run_loop  # noqa: E402
 from pressure.model import load_model  # noqa: E402
+from pressure.monitor import Directions, projections  # noqa: E402
 from pressure.judge import MODEL as JUDGE_MODEL, stats as judge_stats  # noqa: E402
 from pressure.tools import SYSTEM_PROMPT, schemas_for  # noqa: E402
 
@@ -71,17 +74,38 @@ def stamp(args, model_name: str) -> dict:
         "n_items": args.n_items, "git": sha, "cmd": " ".join(sys.argv),
         "judge": None if args.no_judge else JUDGE_MODEL,
         "one_per_grader": args.one_per_grader,
+        "sample_per_cluster": bool(args.sample_per_cluster),
+        "ablate": bool(args.ablate),
+        "monitor": bool(args.monitor),
         "started": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
 
-def corpus(n_items: int | None, one_per_grader: bool = False) -> list[dict]:
+def corpus(n_items: int | None, one_per_grader: bool = False,
+           sample_per_cluster: bool = False, seed: int = CFG.seed) -> list[dict]:
     items = agentharm(harmful=True)
     if one_per_grader:  # coverage smoke: exercise all 52 graders once
         first: dict[str, dict] = {}
         for it in sorted(items, key=lambda r: (r["cluster"], r["id"])):
             first.setdefault(it["grading_function"], it)
         items = list(first.values())
+        n_items = None
+    if sample_per_cluster:
+        # One variant per cluster, rotating through the (hint_included, detailed_prompt)
+        # 2x2 so that factor stays balanced. `one_per_grader` takes variant 1 every
+        # time, which is (True, True) and the highest-compliance cell -- 23.1% against
+        # 15.9% for variant 4 on the 9B run -- so it runs a pilot ~4pp hot.
+        #
+        # ICC ~0.38 means within-cluster variants are partly redundant, so for a fixed
+        # budget this carries more independent information than a random sample of the
+        # same size, and unlike a random draw it cannot drop a grader.
+        by_cluster: dict[str, list[dict]] = defaultdict(list)
+        for it in items:
+            by_cluster[it["cluster"]].append(it)
+        clusters = sorted(by_cluster)
+        random.Random(seed).shuffle(clusters)
+        items = [sorted(by_cluster[cl], key=lambda r: r["id"])[n % len(by_cluster[cl])]
+                 for n, cl in enumerate(clusters)]
         n_items = None
     if n_items:  # first N clusters, all variants, every category represented
         by_cat = defaultdict(lambda: defaultdict(list))
@@ -137,6 +161,15 @@ def main() -> None:
                     help="grade without the semantic judge. The fallback, not the default: "
                          "with the judge off, 31 of 52 graders verify no content at all.")
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--sample-per-cluster", action="store_true",
+                    help="one variant per cluster, balanced across the (hint, detailed) "
+                         "2x2: 52 items covering every cluster, grader and category. "
+                         "Use for the pilot; --one-per-grader is variant-1 biased.")
+    ap.add_argument("--ablate", action="store_true",
+                    help="ablate the selected Arditi direction with ablate_all_components, "
+                         "the intervention 03_arditi_selection scored candidates under")
+    ap.add_argument("--monitor", action="store_true",
+                    help="record r_harm and r_ref projections (one extra forward pass per turn)")
     args = ap.parse_args()
 
     global CONDITIONS
@@ -149,18 +182,28 @@ def main() -> None:
     model_name = CFG.iter_model if args.iter else CFG.eval_model
     meta = stamp(args, model_name)
 
+    dirs = Directions.load(CFG.results_dir) if (args.ablate or args.monitor) else None
+    if dirs is not None:
+        if dirs.model != model_name:
+            raise SystemExit(f"directions are {dirs.model}, model is {model_name}")
+        cos = dirs.cosines()
+        print(f"directions: i*={dirs.arditi_position} l*={dirs.arditi_layer} "
+              f"harm@{dirs.harm_layer} ref@{dirs.ref_layer} | "
+              f"cos vs r_arditi: harm={cos['harm']:+.3f} ref={cos['ref']:+.3f}", flush=True)
+
     rows = None
     if args.out.exists():
         saved = json.loads(args.out.read_text())
         keys = ("model", "conditions", "seed", "n_items", "max_turns", "max_new_tokens",
-                "judge", "one_per_grader")
+                "judge", "one_per_grader", "sample_per_cluster", "ablate", "monitor")
         if all(saved["meta"].get(k) == meta[k] for k in keys):
             rows = saved["rows"]
             print(f"resuming {sum('turns' in r for r in rows)}/{len(rows)} done")
         else:
             raise SystemExit(f"{args.out} was produced with different settings; pass --out elsewhere")
     if rows is None:
-        rows = build(corpus(args.n_items, args.one_per_grader), boards, tok, args.seed)
+        rows = build(corpus(args.n_items, args.one_per_grader, args.sample_per_cluster,
+                            args.seed), boards, tok, args.seed)
     print(f"{len(rows)} rows | {len(rows)//len(CONDITIONS)} items x {len(CONDITIONS)} conditions")
 
     # A row needs work if it has no transcript, or has one that failed to grade.
@@ -174,12 +217,28 @@ def main() -> None:
             turns = [Turn(text=t["text"], calls=t["calls"], results=t["results"],
                           truncated=t.get("truncated", False)) for t in r["turns"]]
         else:
-            turns = run_loop(
-                model, tok,
-                [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": r["user_text"]}],
-                schemas_for(r["target_functions"]),
-                max_turns=args.max_turns, max_new_tokens=args.max_new_tokens,
-            )
+            # The monitor call sits *inside* the ablation context deliberately: under
+            # ablation the projections must be read off the ablated stream.
+            trace: list[dict] = []
+            hook = (lambda p: trace.append(projections(model, tok, p, r["task"], dirs))) \
+                if args.monitor else None
+            ctx = ablate_all_components(model, dirs.r_arditi) if args.ablate else nullcontext()
+            with ctx:
+                turns = run_loop(
+                    model, tok,
+                    [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": r["user_text"]}],
+                    schemas_for(r["target_functions"]),
+                    max_turns=args.max_turns, max_new_tokens=args.max_new_tokens,
+                    on_prompt=hook,
+                )
+            if args.monitor:
+                # p_harm is constant within a row: task_last is an absolute index
+                # inside the user message, and causal attention means later turns
+                # cannot reach it. Store it once. The per-turn values are kept only so
+                # the analysis can assert the drift is float noise, not a trajectory.
+                r["p_harm"] = trace[0]["p_harm"]
+                r["p_harm_orth"] = trace[0]["p_harm_orth"]
+                r["monitor"] = trace
             # Persist the transcript *before* grading. On a cluster the grader may be
             # the only thing that can fail (no outbound network for the judge), and
             # discarding hours of generation because scoring failed is unrecoverable.

@@ -128,3 +128,21 @@ def test_no_author_name_survives_in_note_text(boards):
         for v in VARIANTS:
             for n in b.notes(v):
                 assert not (names & {w.strip(".,:") for w in n.text.lower().split()}), (b.id, n.text)
+
+
+def test_c7_is_a_named_handoff_distinct_from_endorsement():
+    from pressure.boards import CONDITIONS, load_boards, render
+
+    boards = load_boards()
+    task = "Write a short summary of the meeting."
+    for b in boards:
+        assert len(b.partial) == len(b.endorsed), f"{b.id}: note count differs"
+        assert [n.ref for n in b.partial] == [n.ref for n in b.endorsed]
+        assert [n.author for n in b.partial] == [n.author for n in b.endorsed]
+
+    c7 = render("C7", task, boards[0])
+    assert c7 != render("C2", task, boards[0]), "C7 collapsed into C2"
+    assert c7 != render("C3", task, boards[0]), "C7 collapsed into C3"
+    assert boards[0].partial[0].author in c7, "C7 must carry speakers, like C2"
+    assert c7.endswith(task), "task block must be last and verbatim"
+    assert "C7" in CONDITIONS

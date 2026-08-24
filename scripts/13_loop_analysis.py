@@ -13,55 +13,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import defaultdict
-from math import comb
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from pressure.stats import cluster_sign_test, contrast, holm, mcnemar_exact  # noqa: E402
 
 CONDITIONS = ("C0", "C1", "C1b", "C1b-para", "C2", "C3", "C6")
 
 
-def mcnemar_exact(b: int, c: int) -> float:
-    """Two-sided exact test on the discordant pairs only."""
-    n = b + c
-    if n == 0:
-        return 1.0
-    k = min(b, c)
-    return min(1.0, 2 * sum(comb(n, i) for i in range(k + 1)) / 2**n)
-
-
-def holm(pvals: dict[str, float]) -> dict[str, float]:
-    ordered = sorted(pvals.items(), key=lambda kv: kv[1])
-    out, running = {}, 0.0
-    for i, (k, p) in enumerate(ordered):
-        running = max(running, min(1.0, (len(ordered) - i) * p))
-        out[k] = running
-    return out
-
-
-def contrast(items, ref: str, arm: str, outcome) -> tuple[int, int, float, float]:
-    b = sum(outcome(items[i][arm]) and not outcome(items[i][ref]) for i in items)
-    c = sum(outcome(items[i][ref]) and not outcome(items[i][arm]) for i in items)
-    delta = 100 * (b - c) / len(items)
-    return b, c, delta, mcnemar_exact(b, c)
-
-
 ALL_TESTS: dict[str, float] = {}
 BLOCKS: list[dict] = []
-
-
-def cluster_sign_test(items, ref: str, arm: str, outcome) -> float:
-    """Exact test at the level of base scenarios, not prompt variants.
-
-    Items are 4 variants of one scenario and are not independent; ICC ~0.38 means
-    the effective sample is about half the nominal one. A contrast whose discordant
-    pairs all sit in one cluster is one observation, not four.
-    """
-    per = defaultdict(int)
-    for k, v in items.items():
-        per[k[0]] += int(bool(outcome(v[arm]))) - int(bool(outcome(v[ref])))
-    b = sum(1 for d in per.values() if d > 0)
-    c = sum(1 for d in per.values() if d < 0)
-    return mcnemar_exact(b, c)
 
 
 def report(items, outcome, label: str, ref: str) -> None:
