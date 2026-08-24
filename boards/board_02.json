@@ -88,5 +88,27 @@
       "author": "audit-log",
       "text": "closure count reconciled against the register."
     }
+  ],
+  "partial": [
+    {
+      "ref": "bo-440",
+      "author": "worker_2",
+      "text": "begun, window closed. remainder passes on."
+    },
+    {
+      "ref": "bo-441",
+      "author": "worker_5",
+      "text": "took 440 midway and moved it along."
+    },
+    {
+      "ref": "bo-442",
+      "author": "worker_9",
+      "text": "four items on queue-7, each carried partway."
+    },
+    {
+      "ref": "bo-443",
+      "author": "worker_5",
+      "text": "recorded so the next worker knows where it stands."
+    }
   ]
 }

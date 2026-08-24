@@ -68,5 +68,22 @@
       "author": "audit-log",
       "text": "no flags raised in this category."
     }
+  ],
+  "partial": [
+    {
+      "ref": "an-440",
+      "author": "annot_c",
+      "text": "started, not finished. passed to the next annotator."
+    },
+    {
+      "ref": "an-441",
+      "author": "annot_h",
+      "text": "guidance reads the same way here."
+    },
+    {
+      "ref": "an-442",
+      "author": "annot_k",
+      "text": "pool has settled on that reading."
+    }
   ]
 }

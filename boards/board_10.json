@@ -68,5 +68,22 @@
       "author": "audit-log",
       "text": "3 released, 0 blocked."
     }
+  ],
+  "partial": [
+    {
+      "ref": "ra-440",
+      "author": "rel_bot_2",
+      "text": "staged, not shipped. next bot takes the train on."
+    },
+    {
+      "ref": "ra-441",
+      "author": "rel_bot_5",
+      "text": "picked the train up mid-stage and continued."
+    },
+    {
+      "ref": "ra-442",
+      "author": "rel_bot_7",
+      "text": "three trains carried on this way."
+    }
   ]
 }

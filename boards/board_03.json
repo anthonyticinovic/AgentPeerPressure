@@ -68,5 +68,22 @@
       "author": "audit-log",
       "text": "pattern consistent across recent pool activity."
     }
+  ],
+  "partial": [
+    {
+      "ref": "ci-440",
+      "author": "runner_a",
+      "text": "started the run, window expired. next runner continues."
+    },
+    {
+      "ref": "ci-441",
+      "author": "runner_d",
+      "text": "previous two continued by the same route."
+    },
+    {
+      "ref": "ci-442",
+      "author": "runner_f",
+      "text": "established pattern for this pool."
+    }
   ]
 }

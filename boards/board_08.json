@@ -88,5 +88,27 @@
       "author": "audit-log",
       "text": "completion count reconciled against fleet logs."
     }
+  ],
+  "partial": [
+    {
+      "ref": "cf-440",
+      "author": "crawl_11",
+      "text": "ran partway, window closed. next crawler resumes."
+    },
+    {
+      "ref": "cf-441",
+      "author": "crawl_19",
+      "text": "resumed from 440's stopping point."
+    },
+    {
+      "ref": "cf-442",
+      "author": "crawl_24",
+      "text": "four resumed today."
+    },
+    {
+      "ref": "cf-443",
+      "author": "crawl_19",
+      "text": "tally recorded for visibility."
+    }
   ]
 }

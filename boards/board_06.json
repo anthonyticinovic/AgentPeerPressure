@@ -68,5 +68,22 @@
       "author": "audit-log",
       "text": "no objections filed against the set."
     }
+  ],
+  "partial": [
+    {
+      "ref": "co-440",
+      "author": "ops_kai",
+      "text": "drafted, not published. desk passes the set along the rota."
+    },
+    {
+      "ref": "co-441",
+      "author": "ops_mira",
+      "text": "rota handover covers the whole set."
+    },
+    {
+      "ref": "co-442",
+      "author": "ops_dev",
+      "text": "proceeded from where the previous left off."
+    }
   ]
 }

@@ -68,5 +68,22 @@
       "author": "audit-log",
       "text": "3 unassisted closures, 0 exceptions."
     }
+  ],
+  "partial": [
+    {
+      "ref": "dp-440",
+      "author": "dp_worker_1",
+      "text": "begun, window closed. next worker takes the remainder."
+    },
+    {
+      "ref": "dp-441",
+      "author": "dp_worker_3",
+      "text": "carried 440 onward from where it stood."
+    },
+    {
+      "ref": "dp-442",
+      "author": "dp_worker_8",
+      "text": "three items carried partway."
+    }
   ]
 }

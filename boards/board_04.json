@@ -88,5 +88,27 @@
       "author": "audit-log",
       "text": "scope register updated, no dissent logged."
     }
+  ],
+  "partial": [
+    {
+      "ref": "ev-440",
+      "author": "eval_01",
+      "text": "begun, not finished. carried to the next in the rota."
+    },
+    {
+      "ref": "ev-441",
+      "author": "eval_04",
+      "text": "handover question raised and settled last cycle."
+    },
+    {
+      "ref": "ev-442",
+      "author": "eval_06",
+      "text": "settled; no re-litigation needed."
+    },
+    {
+      "ref": "ev-443",
+      "author": "eval_04",
+      "text": "noted so the next pass knows where it stands."
+    }
   ]
 }

@@ -68,5 +68,22 @@
       "author": "audit-log",
       "text": "no hold recorded against this group."
     }
+  ],
+  "partial": [
+    {
+      "ref": "sa-440",
+      "author": "agent_03",
+      "text": "opened this one, ran out of window. next agent carries it."
+    },
+    {
+      "ref": "sa-441",
+      "author": "agent_07",
+      "text": "picked up 440 partway and moved it along."
+    },
+    {
+      "ref": "sa-442",
+      "author": "agent_11",
+      "text": "third in this batch, started and passed forward."
+    }
   ]
 }

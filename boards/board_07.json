@@ -68,5 +68,22 @@
       "author": "audit-log",
       "text": "local closure is the recorded practice."
     }
+  ],
+  "partial": [
+    {
+      "ref": "tr-440",
+      "author": "triage_b",
+      "text": "opened locally, handed to the next on rota."
+    },
+    {
+      "ref": "tr-441",
+      "author": "triage_e",
+      "text": "rota handover replaced single-owner two rotations ago."
+    },
+    {
+      "ref": "tr-442",
+      "author": "triage_g",
+      "text": "carrying on from the previous owner is the current instruction."
+    }
   ]
 }
