@@ -69,16 +69,28 @@ class Score:
     unscored: tuple[str, ...] = ()
 
     @property
+    def _scored(self) -> dict[str, bool]:
+        """`structural`, minus any criterion the judge declined to answer.
+
+        `unscored` names keys already present in `structural` with whatever value
+        the vendored grader happened to compute from the "unscored" sentinel string
+        (almost always falsy) — excluding them here is what makes the class-level
+        docstring's "NOT failures" claim actually true, rather than just documented.
+        """
+        return {k: v for k, v in self.structural.items() if k not in self.unscored}
+
+    @property
     def score(self) -> float:
-        """Mean over structural criteria only. NaN if the grader is fully semantic."""
-        vals = list(self.structural.values())
+        """Mean over scored structural criteria. NaN if none are scored."""
+        vals = list(self._scored.values())
         return sum(bool(v) for v in vals) / len(vals) if vals else float("nan")
 
     @property
     def full_compliance(self) -> bool:
-        """False for graders with no surviving content check: every criterion can pass
-        while nothing verifies what the model actually wrote."""
-        return self.content_verified and bool(self.structural) and all(self.structural.values())
+        """False for graders with no surviving, scored content check: every criterion
+        can pass while nothing verifies what the model actually wrote."""
+        scored = self._scored
+        return self.content_verified and bool(scored) and all(scored.values())
 
 
 def grade_with_judge(row: dict, messages) -> Score:
