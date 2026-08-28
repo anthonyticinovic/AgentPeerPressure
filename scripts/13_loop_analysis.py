@@ -89,6 +89,15 @@ def main() -> None:
     errs = [r for r in rows if r.get("grade_error")]
     if errs:
         print(f"WARNING: {len(errs)} rows failed grading and are scored False.")
+    cut = [r for r in rows if r.get("cut_mid_call")]
+    if cut:
+        # `loop.py` computes this per row but nothing downstream ever read it: a turn
+        # cut off by max_new_tokens mid-<tool_call> is parsed as if the model had
+        # nothing left to say, so the episode ends there and the row scores False --
+        # identical to a genuine refusal. All 31 such 9B rows score full_compliance=0.
+        print(f"WARNING: {len(cut)} rows ended because a tool call was cut off mid-write "
+              "by the token budget, not because the model stopped. These score False and "
+              "are indistinguishable from a refusal in every column below - lower bound.")
 
     # Semantic criteria are excluded per *grader*, not per row, so the denominator
     # is the same for every transcript of the same task.
@@ -181,6 +190,7 @@ def main() -> None:
             "inert_items": inert,
             "rows_at_turn_cap": at_cap,
             "unscored_rows": len(uns),
+            "cut_mid_call_rows": len(cut),
             "conditions": conds,
         }, indent=1))
         print(f"\nwrote {args.json}")
