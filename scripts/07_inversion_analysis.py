@@ -29,7 +29,7 @@ from collections import defaultdict
 import numpy as np
 
 from pressure.config import CFG
-from pressure.inversion import JUDGED_HARMFUL, REFUSED, UNPARSED, save_json
+from pressure.inversion import JUDGED_HARMFUL, JUDGED_HARMLESS, REFUSED, UNPARSED, save_json
 
 SIGN = {"r_harm+": +1, "r_ref+": +1, "r_arditi+": +1,
         "r_harm-": -1, "r_ref-": -1, "r_arditi-": -1}
@@ -58,9 +58,18 @@ def main() -> None:
         # baseline stored as fraction hitting that panel's target
         baseline[panel] = 0.0 if panel == "harmless" else 1.0 - b["strict_target"]
 
+    def judged(rows):
+        return [r for r in rows if r["strict"] in (JUDGED_HARMFUL, JUDGED_HARMLESS)]
+
     def p_harmful(rows):
-        n = max(len(rows), 1)
-        return sum(r["strict"] == JUDGED_HARMFUL for r in rows) / n
+        """P(judged harmful) among rows that actually produced a harmful/harmless
+        verdict. REFUSED and UNPARSED are both declines, not a harmless verdict --
+        counting either in the denominator deflates the rate at exactly the layers
+        most likely to break the yes/no answer, the same trap `unparsed` alone used
+        to cause here before this was found and fixed."""
+        j = judged(rows)
+        n = max(len(j), 1)
+        return sum(r["strict"] == JUDGED_HARMFUL for r in j) / n
 
     def p_ref(rows):
         n = max(len(rows), 1)
@@ -70,14 +79,18 @@ def main() -> None:
         n = max(len(rows), 1)
         return sum(r["strict"] == UNPARSED for r in rows) / n
 
-    # A cell where most replies parse to nothing is UNREADABLE, not a null. Because
-    # unparsed sits in the denominator of p_harmful, a wholly destroyed model scores
-    # exactly 0.00 on the harmless panel -- identical to an intervention that did
-    # nothing. Those cells must be excluded from extremes and shown as gaps, never
-    # plotted as zeros.
+    def p_broken(rows):
+        n = max(len(rows), 1)
+        return sum(r["strict"] in (REFUSED, UNPARSED) for r in rows) / n
+
+    # A cell where most replies are REFUSED or UNPARSED is UNREADABLE, not a null.
+    # Either leaves the yes/no answer position empty of an actual verdict, so a wholly
+    # destroyed model scores exactly 0.00 on the harmless panel -- identical to an
+    # intervention that did nothing. Those cells must be excluded from extremes and
+    # shown as gaps, never plotted as zeros.
     UNREADABLE = 0.5
 
-    out = {"baseline_p_harmful": baseline, "arms": {}}
+    out = {"model": sweep.get("model"), "baseline_p_harmful": baseline, "arms": {}}
     print(f"baseline P(judged harmful): harmless {baseline['harmless']:.2f}  "
           f"harmful {baseline['harmful']:.2f}\n", flush=True)
 
@@ -94,7 +107,7 @@ def main() -> None:
                     continue
                 series.append({"layer": lay, "p_harmful": p_harmful(rows),
                                "refused": p_ref(rows), "unparsed": p_unparsed(rows),
-                               "readable": bool(p_unparsed(rows) < UNREADABLE),
+                               "readable": bool(p_broken(rows) < UNREADABLE),
                                "delta": p_harmful(rows) - baseline[panel]})
             # Layer 0 steers the embedding itself, which corrupts the prompt rather than
             # a belief; excluded from the extremes but kept in the series for the plot.

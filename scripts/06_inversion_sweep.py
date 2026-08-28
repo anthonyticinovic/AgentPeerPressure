@@ -165,12 +165,20 @@ def answer_gap(model, tok, enc, yes_id: int, no_id: int) -> list[float]:
 
 
 def summarise(rows, target):
-    """Fraction judged `target`, plus the diagnostic buckets."""
+    """Fraction judged `target`, plus the diagnostic buckets.
+
+    `zhao_target` keeps unparsed in its denominator deliberately: it reproduces Zhao's
+    own published metric verbatim, substring-scored over all attempts. `strict_target`
+    is ours, so it excludes REFUSED and UNPARSED from its denominator -- both are
+    declines, not the negative verdict, and counting either would deflate the rate
+    exactly at the layers most likely to break the yes/no answer.
+    """
     n = max(len(rows), 1)
+    judged = [r for r in rows if r["strict"] != UNPARSED and r["strict"] != REFUSED]
     return {
         "n": len(rows),
         "zhao_target": sum(r["zhao"] == target for r in rows) / n,
-        "strict_target": sum(r["strict"] == target for r in rows) / n,
+        "strict_target": sum(r["strict"] == target for r in judged) / max(len(judged), 1),
         "unparsed": sum(r["zhao"] == UNPARSED for r in rows) / n,
         "refused": sum(r["strict"] == REFUSED for r in rows) / n,
         "disagree": sum(r["zhao"] != r["strict"] for r in rows) / n,
@@ -208,13 +216,27 @@ def main() -> None:
 
     D = build_directions(model, tok, args.n_fit)
     harmful, harmless = extraction_corpus()
-    h_fit, h_sel = split_extract_select(harmful)
-    b_fit, b_sel = split_extract_select(harmless)
+    _, h_sel = split_extract_select(harmful)
+    _, b_sel = split_extract_select(harmless)
 
     # ---- Stage 1: calibrate the coefficient on the SELECTION split ------------
+    # Calibration takes the TAIL of h_sel/b_sel and the sweep stage below takes the
+    # HEAD (`[:args.n]`), so the 12 prompts the coefficient is grid-searched against
+    # are disjoint from the "held-out" prompts it's later scored on. A cold review
+    # found both stages had been slicing the same [:12] prefix -- the coefficient
+    # picked here would then be re-tested on the same 12 items it was chosen to work
+    # well on, 24% of a default 50-item sweep.
     if args.stage == "calibrate":
-        H = [p for p in h_sel.prompts if not any(x in p.lower() for x in EXCLUDE)][:12]
-        B = list(b_sel.prompts)[:12]
+        cal_reserve = 12
+        h_sel_filtered = [p for p in h_sel.prompts if not any(x in p.lower() for x in EXCLUDE)]
+        if args.n + cal_reserve > min(len(h_sel_filtered), len(b_sel.prompts)):
+            raise SystemExit(
+                f"--n {args.n} leaves no room for {cal_reserve} disjoint calibration "
+                f"prompts out of {len(h_sel_filtered)}/{len(b_sel.prompts)} in the "
+                "selection split"
+            )
+        H = h_sel_filtered[-cal_reserve:]
+        B = list(b_sel.prompts)[-cal_reserve:]
         layers = [int(x) for x in args.cal_layers.split(",")]
         out = []
         print(f"\ncalibrating on selection split, layers {layers}", flush=True)
@@ -245,8 +267,11 @@ def main() -> None:
         cal_path.read_text())["best"]["coeff"]
     print(f"coefficient {coeff} (frozen)", flush=True)
 
-    H = [p for p in h_fit.prompts if not any(x in p.lower() for x in EXCLUDE)][: args.n]
-    B = list(b_fit.prompts)[: args.n]
+    # h_sel/b_sel, not h_fit/b_fit: build_directions() already fit r_harm/r_ref/r_arditi
+    # on the FIT split. Scoring the sweep on the same split it was fit on is leakage —
+    # every "held-out" prompt here was inside the fitting set.
+    H = [p for p in h_sel.prompts if not any(x in p.lower() for x in EXCLUDE)][: args.n]
+    B = list(b_sel.prompts)[: args.n]
     print(f"held-out: {len(H)} harmful, {len(B)} harmless\n", flush=True)
 
     # (name, vector, sign, context_only) per Zhao's Fig 5 + our Arditi arm.
@@ -267,7 +292,8 @@ def main() -> None:
         ("r_arditi-", D["r_arditi"], -1, False),
     ]
 
-    results = {"template_idx": t_idx, "question": question, "coeff": coeff,
+    results = {"model": CFG.iter_model if args.iter else CFG.eval_model,
+               "template_idx": t_idx, "question": question, "coeff": coeff,
                "n_layers": L, "decode_steps": args.decode_steps,
                "max_new_tokens": args.max_new,
                "arditi_layer": int(D["arditi_layer"]),
