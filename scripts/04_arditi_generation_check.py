@@ -164,6 +164,7 @@ def main() -> None:
 
     save_transcripts(CFG.results_dir / "transcripts_arditi_long.json", rows)
     (CFG.results_dir / "arditi_generation_check.json").write_text(json.dumps({
+        "model": CFG.iter_model if args.iter else CFG.eval_model,
         "selected": star, "max_new_tokens": args.max_new, "n_prompts": len(prompts),
         "behaviour": res, "refusal_metric": metrics,
     }, indent=2))

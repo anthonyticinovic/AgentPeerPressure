@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from pressure.config import CFG
+from pressure.provenance import assert_same_model
 
 OUT = Path("artifacts/inspection.html")
 
@@ -36,6 +37,8 @@ def gate_b_payload():
     )
     if not (sel and gen and hand):
         return None
+    assert_same_model({"arditi_selection.json": sel, "arditi_generation_check.json": gen,
+                        "HANDLABEL_arditi_selected.json": hand})
     s, a, b = sel["selected"], sel["auroc_choice"], gen["behaviour"]
     n_cand = len(sel["positions"]) * sel["n_layers"]
     yes, no = '<span class="yes">yes</span>', '<span class="no">no</span>'
@@ -94,14 +97,20 @@ def gate_b_payload():
 
 
 def build() -> str:
+    dual, inv, ana = (_load("dual_directions.json"), _load("inversion_sweep.json"),
+                      _load("inversion_analysis.json"))
+    causal = gate_b_payload()
+    assert_same_model({"dual_directions.json": dual, "inversion_sweep.json": inv,
+                        "inversion_analysis.json": ana,
+                        "arditi_selection.json": _load("arditi_selection.json")})
     payload = json.dumps(
         {
             "sweep": _load("r_ref_sweep.json"),
             "samples": _load("dataset_samples.json"),
-            "dual": _load("dual_directions.json"),
-            "causal": gate_b_payload(),
-            "inv": _load("inversion_sweep.json"),
-            "ana": _load("inversion_analysis.json"),
+            "dual": dual,
+            "causal": causal,
+            "inv": inv,
+            "ana": ana,
             "pre": _load("inversion_preflight.json"),
             "diag": _load("diag_inversion.json"),
         }

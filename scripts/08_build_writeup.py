@@ -20,6 +20,7 @@ import json
 from pathlib import Path
 
 from pressure.config import CFG
+from pressure.provenance import assert_same_model
 
 OUT = Path("artifacts/writeup.html")
 
@@ -39,6 +40,13 @@ def build() -> str:
     p9 = _load("gate_p_9b.json")
     p4 = _load("gate_p_4b.json")
     pw = _load("power_9b.json")
+
+    # Phase 1 (directions: ana/sweep/gen/sel/hand/dual) is 4B-only by design and must
+    # agree internally. Phase 2 (p9/p4/pw) is deliberately cross-scale -- p4 exists to
+    # be compared against p9 -- so it is not part of this check.
+    assert_same_model({"inversion_analysis.json": ana, "inversion_sweep.json": sweep,
+                        "arditi_generation_check.json": gen, "arditi_selection.json": sel,
+                        "HANDLABEL_arditi_selected.json": hand, "dual_directions.json": dual})
 
     payload = {
         "head": ana["headline"],

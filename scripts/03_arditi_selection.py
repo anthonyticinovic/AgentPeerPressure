@@ -226,6 +226,7 @@ def main() -> None:
         save_transcripts(CFG.results_dir / "transcripts_arditi_selection.json", rows)
 
     payload = {
+        "model": CFG.iter_model if args.iter else CFG.eval_model,
         "n_layers": L,
         "positions": list(offsets),
         "refusal_tokens": {"derived": R, "decoded": [tok.decode([i]) for i in R],
