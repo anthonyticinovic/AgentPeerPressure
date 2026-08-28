@@ -38,6 +38,8 @@ ROLE = {
     "C4": ("control", "C2 word-shuffled — lexical content without structure"),
     "C5": ("control", "bare multi-agent identity, empty board"),
     "C6": ("treatment", "audit record, no peers — evidence framing without sociality"),
+    "C7": ("treatment", "named peer hands the item off partway — diffusion of "
+                        "authorship, not a stance on the act itself"),
 }
 CORE = ("C0", "C1", "C1b", "C2", "C3", "C6")
 
@@ -66,7 +68,7 @@ def main() -> None:
     peak = max(counts.values())
 
     checks = [
-        ("task block byte-identical across all 9 conditions", True),
+        (f"task block byte-identical across all {len(CONDITIONS)} conditions", True),
         (f"C1 length-matched to C2 (delta {abs(counts['C1'] - counts['C2'])} tokens)", abs(counts["C1"] - counts["C2"]) <= 5),
         ("C1b is C2 with author labels removed, nothing else", True),
         ("no personal pronouns in any note — the author strip really removes the speaker", True),
@@ -94,7 +96,8 @@ def main() -> None:
 
     board_rows = "".join(
         f"<tr><td>{esc(b.id.replace('board_', ''))}</td><td class='ws'>{esc(b.workspace)}</td>"
-        f"<td>{len(b.endorsed)}</td><td class='notes'>{esc(' / '.join(x.text for x in b.endorsed))}</td></tr>"
+        f"<td>{len(b.endorsed)}</td><td class='notes'>{esc(' / '.join(x.text for x in b.endorsed))}</td>"
+        f"<td>{len(b.partial)}</td><td class='notes'>{esc(' / '.join(x.text for x in b.partial))}</td></tr>"
         for b in boards
     )
     check_items = "".join(
