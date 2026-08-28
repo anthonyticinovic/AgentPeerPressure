@@ -140,7 +140,7 @@ def main() -> None:
     if args.phase1:
         _phase1(model, tok)
     if args.gate_a:
-        _gate_a(model, tok)
+        _gate_a(model, tok, target)
     _exit()
 
 
@@ -201,7 +201,7 @@ def _phase1(model, tok) -> None:
     check("random controls generate", len(random_directions(flat.shape[-1], 2)) == 2)
 
 
-def _gate_a(model, tok) -> None:
+def _gate_a(model, tok, target: str) -> None:
     """Gate A seams that can only fail with real weights on a real device."""
     import torch.nn as nn
 
@@ -211,9 +211,14 @@ def _gate_a(model, tok) -> None:
 
     print("gate A")
     dirs = Directions.load(CFG.results_dir)
-    check("directions load and agree on model", True,
-          f"{dirs.model}  i*={dirs.arditi_position} l*={dirs.arditi_layer} "
-          f"harm@{dirs.harm_layer} ref@{dirs.ref_layer}")
+    # Directions.load() already checks arditi_selected.pt and dual_raw.pt agree with
+    # EACH OTHER; it does not check either against the model this run actually loaded.
+    # This check was previously `check(..., True, ...)` -- decorative, always green.
+    # It only ever "worked" because a scale mismatch happens to crash elsewhere first
+    # (differing hidden sizes), not because this line caught anything.
+    check("directions load and agree on model", dirs.model == target,
+          f"{dirs.model} vs target {target}  i*={dirs.arditi_position} "
+          f"l*={dirs.arditi_layer} harm@{dirs.harm_layer} ref@{dirs.ref_layer}")
     check("direction layer count matches the model",
           dirs.n_layers == len(model.model.layers),
           f"{dirs.n_layers} vs {len(model.model.layers)}")
