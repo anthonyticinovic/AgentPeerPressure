@@ -456,11 +456,103 @@ Three subagents reviewed this independently and blind to each other (no shared c
 time). Held per the user's explicit instruction pending a second round of adversarial
 review before resubmission — see below.
 
-**Next step:** a second round of adversarial review (4 parallel subagents: pipeline
-bugs beyond the truncation issue already found, unseen bugs in the previous run's raw
-artefacts/transcripts/grading, cheap-or-free additions to the next run, and an outcome
--planning/pre-mortem pass) before resubmitting to Spartan. **Do not submit to Spartan
-until this is explicitly cleared.**
+### Adversarial review round 2, bug fixes, and the corrected resubmission — 2026-08-28
+
+Four more subagents, blind to each other and to round 1's specific findings (briefed
+on scope only, to avoid duplicating it):
+
+- **Pipeline bugs beyond truncation.** Found the exact same failure class live in the
+  working tree at review time: `src/pressure/grading.py`, `tests/test_loop.py` modified
+  but uncommitted, `scripts/21_interaction_power.py` untracked — `hpc/sync.sh` ships
+  tracked files' on-disk content via rsync, not git blobs, so any of these would have
+  shipped wrong or not at all. Traced the structural root cause: no `.git` on Spartan at
+  all, sync is a human-remembered manual step with zero automated verification — exactly
+  what let the token-budget fix silently not ship the first time. Also found: resubmitting
+  to the same `--out` path would hard-fail fast (not silently mix) on the existing
+  meta-mismatch guard, but only after wasting a GPU allocation, since the stale 768-token
+  result files were still sitting on Spartan; walltime margin re-derived from real
+  timestamps (not the sbatch comment) confirmed the old 20h cap was missed by exactly
+  296 seconds, not a coincidence.
+- **Broad artefact/transcript review.** Found a new, real bug (see fix below). Everything
+  else came back clean at full scale: tool-call parsing re-simulated against all 10,019
+  turns with zero mismatches, board rendering verified byte-identical and speaker-free
+  across all 2496 rows, 10 spot-checked graders behave as coded, judge cache structurally
+  sound, monitor traces scanned in full with zero NaN/inf/out-of-range values.
+- **Cheap/free additions.** Costed out (not just described): C4/C5 (~7h/arm), per-row
+  token-budget logging + config echo (~0 cost), full 32-layer monitor capture (~0 cost,
+  data already computed by the existing hook and discarded), judge-rationale capture
+  (skip — migration risk on already-audited cache) and GPU/batching (skip — fixed
+  208-item corpus, greedy decoding, no lever to pull).
+- **Outcome pre-mortem.** Worked through four result scenarios (strong positive, weak,
+  robust null, reversed-direction). Only the reversed-direction case exposed a real gap:
+  without a no-content length-matched control, a reversed effect is permanently
+  unfalsifiable ("real reversal" vs "any extra text moves compliance") once the run
+  completes — recommended adding C1 to close it. Also recommended productionising the
+  leave-one-cluster-out sweep and pre-writing the monitoring-blind-spot cross-tab, both
+  independent of which outcome scenario actually happens.
+
+**Two more bugs fixed, both local, no Spartan run needed:**
+
+1. **`p_harm`'s position could silently drift mid-row** (`src/pressure/hooks.py`,
+   `src/pressure/monitor.py`, `scripts/12_peer_loop.py`). `resolve_positions()` found
+   the task instruction via a plain `rfind` over the whole growing conversation; once
+   the model echoed the task text verbatim in its own output (common — e.g. as a tool
+   -call argument), `rfind` latched onto that later occurrence instead of the original,
+   silently moving `p_harm` and breaking the "constant within a row" causal-attention
+   invariant `monitor.py`'s own docstring asserts. Root cause of the round-1 harm-drift
+   bound violation (7 rows, 3 items, ablated arm only). Fixed by bounding the search to
+   the turn-0 prompt length, captured on the first monitor call before any model output
+   exists. Verified on real generated data post-fix: worst within-row `p_harm` spread
+   across 40 fresh rows was 0.088, well under the 0.2 bound, no jump-and-hold pattern
+   anywhere (smoke test, job 29705154, 2026-08-28).
+2. **`19_ablation_analysis.py` checked the wrong exception key** — `grade_error` (set by
+   `12_peer_loop.py`'s structural pass) but not `judge_error` (set by `15_regrade.py`'s
+   judge pass, a different key). Zero rows hit this in the confirmatory data; dormant,
+   same class as the unscored-pooling bug.
+
+**Uncontested additions shipped:** per-row `max_new_tokens` field; `hpc/gate_a.sbatch`
+echoes resolved `conds`/`tok_args`/`scope_args` and hard-refuses to run `scope=full` at
+anything but 1536 tokens; full 32-layer `r_harm`/`r_ref` profile captured per turn (zero
+marginal cost — the hook already computes every layer, only one was ever read out);
+`scripts/22_turn1_lockin.py` (new) — does turn-1 engagement predict final compliance
+regardless of condition? On the (soon-to-be-superseded) confirmatory data: **0/703
+(base) and 0/86 (ablated) rows with no turn-1 tool call ever ended up compliant** — a
+perfect 0% recovery rate — and compliance is flat across all six conditions (~0.46-0.51)
+even restricted to turn-1-engaged rows only. A real mechanistic account for the
+peer-framing null, not just a power-ceiling shrug; needs rerunning against the corrected
+data but the pattern is unlikely to be an artefact of the token-budget bug specifically.
+`logs/` gitignored (was untracked, dangling since Task 9).
+
+**C1, C4, C5 added; walltime bumped 36h -> 40h** (`hpc/gate_a.sbatch`). C1 (length
+-matched neutral filler) closes the reversed-direction falsifiability gap; C4
+(word-shuffled C2 board) and C5 (bare multi-agent identity, no content) are the only
+check that the instrument responds to non-peer-specific framing at all — all three
+already existed in `boards.py`/`CONDITIONS`, just never included in a generation run.
+Real measured rates (34.7s/row base, 57.93s/row ablated, from the run that actually
+executed) extrapolate the 9-condition scope to ~18.4h base / ~30.6h ablated including
+the token bump; 40h keeps real margin. `sinfo`/`squeue`/`sacctmgr` confirmed genuine
+spare capacity and no allocation cap on the account, so the bump costs nothing.
+
+Every change (both bug fixes, all additions, the condition/walltime bump) committed in
+9 commits, synced, and **independently verified present on Spartan by grepping the
+actual remote files** — not trusted from `sync.sh`'s own success message, per the
+pipeline reviewer's specific finding above. Smoke-tested on real data before submission
+(job 29705154, 40/96 rows before hitting its own 30-min limit, no crash, no anomalous
+`p_harm` jumps). Stale 768-token result files renamed out of the live output path on
+Spartan before resubmission.
+
+**Confirmatory run resubmitted 2026-08-28: base = job 29705520, ablated = job 29705521.**
+9 conditions, 1536 tokens, 40h cap. Both passed their own preflight (the same one
+expected non-fatal check as every prior run: `i*=-1` coincides with `context_last`) and
+are generating. Expected completion: base ~18.4h, ablated ~30.6h from submission.
+
+**Next step, once this completes:** fetch, regrade locally with the judge, rerun
+`19_ablation_analysis.py` (needs extending for the 3 new conditions — not yet done,
+see Open items) and `21_interaction_power.py` on the corrected data, specifically
+re-check cluster 27/item 53 (`grade_paper_plagiarism`, flagged as still likely to
+truncate even at 1536 tokens), rerun the turn-1 lock-in diagnostic to confirm the
+pattern holds. The monitoring blind-spot cross-tab (needs a calibrated `p_harm_orth`
+threshold — none exists in committed code yet) is still being workshopped, not started.
 
 **On the 4B, 14 of 115 items were ever discordant and ~22 of the 59 inert items were
 unreachable by construction.** That does NOT carry over to the 9B: all **108** inert
