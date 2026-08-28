@@ -317,22 +317,15 @@ now actioned, 2026-08-26:
    completeness gap on this one grading function rather than fix before the
    confirmatory run.
 3. **Power for the actual primary (the interaction, not a single contrast) needed new
-   code** — `18_power.py` only handles one paired ref/arm contrast. An independent
-   Monte-Carlo simulation of `19_ablation_analysis.py`'s own `interaction()` statistic,
-   calibrated (false-positive rate 0.03-0.06 at eff=0, ≈ nominal), gives:
-
-   | true interaction | power, n=52 (pilot) | power, n=208 (confirmatory) |
-   |---|---|---|
-   | 10pp | 0.07 | 0.17 |
-   | 15pp | 0.17 | 0.30 |
-   | 20pp | 0.28 | 0.47 |
-   | 25pp | 0.38 | 0.69 |
-   | 30pp | 0.54 | 0.87 |
-
-   **The confirmatory run needs roughly a 20-25pp true interaction for even-odds
-   power** — noticeably higher than the ~15pp a naive read of the single-contrast pilot
-   table would suggest, because the interaction's variance is larger than either
-   contrast alone. State this bound alongside any confirmatory-run null.
+   code** — `18_power.py` only handles one paired ref/arm contrast. **The table
+   originally here (10-30pp -> 0.17-0.87, described as "an independent Monte-Carlo
+   simulation... calibrated") could not actually be reproduced from any committed
+   script** — caught by adversarial review 2026-08-28, the second time this project has
+   shipped an unreproducible power table under that exact description (the first, §4,
+   was retracted 2026-08-24). **Superseded 2026-08-28 by `scripts/21_interaction_power.py`**
+   — see the new subsection below for the validated replacement numbers, which are
+   substantially different (much higher power at small effects, but capped at a real
+   ceiling the old table didn't have). Do not cite the table that was here.
 
 Also found: **Task 9 (the plan's blocking identity check)** has no recorded result
 anywhere — no `results/gate_a_identity.json`, no STATE entry, unlike A1/A2/pilot which
@@ -376,8 +369,98 @@ Two housekeeping notes for whoever runs Task 10/11's commit step later: the plan
 `--json` explicitly for the confirmatory run or it silently overwrites this file.
 
 **All three findings actioned, plus Task 9 (above) run and PASSed.** Nothing outstanding
-from this review. **Next step:** submit the confirmatory run (208 items × 6 × 2, ~35h)
-— pending the user's explicit go-ahead, held overnight 2026-08-26 by their own request.
+from this review. Confirmatory run submitted 2026-08-26 after the user's explicit
+go-ahead (jobs 29646980 base, 29646981 ablated) and completed clean.
+
+### Confirmatory run graded and analysed, adversarial review round 1 — 2026-08-27/28
+208 items × 6 conditions × 2 ablation levels, graded locally (`15_regrade.py`,
+`deepseek-v4-pro`/`-flash`), analysed with `19_ablation_analysis.py`: 206 of 208 items
+paired (2 dropped — see below). **Primary, pre-registered: interaction C2-C3 = +3.88pp,
+p = 0.2805.** Null. Informative items 32→56 of 206 (base→ablated) — ablation still grew
+dynamic range at full scale, same direction as the pilot.
+
+Three subagents reviewed this independently and blind to each other (no shared context):
+
+- **Statistics reviewer**: the p=0.2805 computation itself is correct — reproduced by
+  hand from raw JSON, McNemar/Holm formulas checked against scipy, no circularity
+  between the "informative items" diagnostic and the actual test, pre-registration
+  timing confirmed (`C2-C3` designated primary 2026-08-24, before any pilot or
+  confirmatory data existed), robust to the 2 dropped items under every plausible
+  imputation. Found the unreproducible power table (above) and a dormant bug: unscored
+  judge verdicts were pooled as failures despite three code comments saying they
+  shouldn't be (0/1248 rows affected in this run — a landmine for a flakier judge next
+  time, not a threat to this result).
+- **Pipeline reviewer**: board content matches perfectly across arms (1248/1248 triples
+  checked), no row misalignment, identical git commit/model/seed in both jobs' `meta`,
+  judge grading condition-blind, the 2 dropped items are a genuine walltime tail-cut
+  (last 8 rows of the ablated job, never generated) unrelated to outcome. **But**: a
+  leave-one-cluster-out sweep across all 52 clusters found cluster 76 (item 35, a
+  long-form rewrite task) alone flips the result — excluding it moves p from 0.28 to
+  **0.02**, effect from +3.88pp to +5.94pp. Traced to the `hpc/gate_a.sbatch` token-bump
+  fix (`c66a747`, 1536 tokens for `GATE_A_SCOPE=full`) never actually reaching the run
+  that executed — both jobs ran at commit `42b4b5f`, which predates that fix, so this
+  run used the old 768-token budget throughout despite the fix being written and
+  committed the day after the pilot. In cluster 76, base-C3 and ablated-C2 both got cut
+  off mid-rewrite by the token budget (`cut_mid_call`), landing on opposite conditions
+  in the two arms — a coin-flip, verified by reading the actual transcripts (near
+  -verbatim identical up to the truncation point), not a framing effect.
+- **Follow-on-experiments reviewer** (assumes findings true, proposes next steps):
+  recommends (1) building a monitoring-blind-spot cross-tab directly from data already
+  in hand — refusal-monitor-cleared vs. `r_harm`-still-flags-harmful in the ablated arm
+  — as a positive, agentic-scale demonstration of the thesis independent of whether
+  peer-framing itself ever moves anything, zero new compute; (2) a positive-control
+  condition (`C4`/`C5`, already coded in `boards.py`/`09_inspect_stimuli.py`, never run)
+  since neither null is currently falsifiable without one; (3) checking whether turn-1
+  behaviour already predicts final compliance regardless of condition, as a mechanistic
+  "why" for the peer-framing null. Confirmed real deadline: `docs/Nanda-project-plan.md`,
+  4 Sept 2026 (extension to 11 Sept).
+
+**Two bugs fixed same day, both local-only, no Spartan run needed for either:**
+
+1. **Unscored-criteria pooling** (`src/pressure/grading.py`) — `Score.full_compliance`/
+   `.score` now exclude `self.unscored` keys instead of silently treating a declined
+   judge verdict as a failure. Regression test added (`tests/test_loop.py`). Zero effect
+   on the confirmatory data as graded (0/1248 rows had any unscored criteria); protects
+   the next run, not this one.
+2. **Interaction power, done properly** (`scripts/21_interaction_power.py`, new) — three
+   design iterations before one was actually calibrated; the first two failure modes are
+   documented in the script's own docstring as a warning against repeating them. Final
+   method: resample the real, observed per-item `|d|` magnitudes with independent
+   per-cluster random sign flips (the same reference distribution `interaction()`'s own
+   permutation null already draws from — calibrated by construction, not tuned to be
+   so), validated every run against the production `interaction()` function (observed
+   effect matches to float precision, p-value matches within MC noise). Calibration
+   check (power at a true effect of 0) landed at 0.040 against nominal 0.05 — consistent
+   with the known mild conservatism of exact permutation tests over ~52 clustered units,
+   not a defect.
+
+   | true interaction | power (n=206, confirmatory) |
+   |---|---|
+   | 0pp (calibration) | 0.040 |
+   | 5pp | 0.265 |
+   | 10pp | 0.857 |
+   | ≥15pp | **not assessable** — beyond this run's own 13.6pp discordance ceiling |
+
+   **Read this as conditional power, not unconditional power.** It fixes the *amount* of
+   real discordance this run produced (28 discordant items) and asks only how easily
+   that existing discordance's sign could have been biased to look like a given effect —
+   it does not model a genuinely larger true effect also producing *more* discordant
+   items than were observed. Within its assessable range this likely still understates
+   true prospective power; past 13.6pp it says nothing at all, which cuts against the
+   write-up's current "can't rule out an effect under ~20pp" framing rather than
+   supporting it. Whichever way this gets used in the write-up, cite this table, not the
+   one it replaced.
+
+**Not fixed yet — needs the Spartan rerun:** the token-budget bug itself (`hpc/gate_a
+.sbatch` already has the 1536-token fix committed; it just needs to actually ship this
+time). Held per the user's explicit instruction pending a second round of adversarial
+review before resubmission — see below.
+
+**Next step:** a second round of adversarial review (4 parallel subagents: pipeline
+bugs beyond the truncation issue already found, unseen bugs in the previous run's raw
+artefacts/transcripts/grading, cheap-or-free additions to the next run, and an outcome
+-planning/pre-mortem pass) before resubmitting to Spartan. **Do not submit to Spartan
+until this is explicitly cleared.**
 
 **On the 4B, 14 of 115 items were ever discordant and ~22 of the 59 inert items were
 unreachable by construction.** That does NOT carry over to the 9B: all **108** inert
