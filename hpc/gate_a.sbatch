@@ -31,7 +31,15 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
-#SBATCH --time=20:00:00
+#SBATCH --time=36:00:00
+# Pilot's ablated arm ran 5h11m for 52 items (~5.98 min/item); the confirmatory scope's
+# 208 items extrapolate to ~20h7m -- right at the previous 20h cap, with no margin for
+# per-item variance. Bumped 2026-08-25 after the pilot, before the confirmatory
+# submission. gpu-h100's partition limit is 7 days and publicgpu carries no QOS-level
+# wall cap, so this costs nothing if the job finishes early; the job is resumable
+# (`12_peer_loop.py` checkpoints every 10 rows) regardless. The confirmatory scope's
+# 1536-token budget (below) only lengthens the ~6% of rows that actually hit the old
+# 768 ceiling; it does not move this estimate enough to threaten the 36h cap.
 #SBATCH --requeue
 #SBATCH --output=logs/slurm/%x_%j.out
 #SBATCH --error=logs/slurm/%x_%j.err
@@ -49,8 +57,14 @@ python scripts/17_cluster_preflight.py --gate-a
 
 CONDS="C0 C1b C2 C3 C6 C7"
 case "${GATE_A_SCOPE}" in
-    pilot) SCOPE_ARGS="--sample-per-cluster"; TAG="pilot" ;;
-    full)  SCOPE_ARGS="";                     TAG="full"  ;;
+    # Pilot's cut_mid_call rate grew under ablation (3/52 base -> 5/52 abl items touched,
+    # 19/312 rows at the 768-token default) and the confirmatory run is 4x the items, so
+    # the confirmatory scope gets a larger budget. Not applied to pilot: it already ran,
+    # and its own base/ablated arms only need to be comparable to each other, which they
+    # are. base vs ablated within the confirmatory run share this same larger budget, so
+    # that comparison is unaffected either.
+    pilot) SCOPE_ARGS="--sample-per-cluster"; TAG="pilot"; TOK_ARGS="" ;;
+    full)  SCOPE_ARGS="";                     TAG="full";  TOK_ARGS="--max-new-tokens 1536" ;;
     *)     echo "GATE_A_SCOPE must be 'pilot' or 'full', got '${GATE_A_SCOPE}'" >&2; exit 1 ;;
 esac
 case "${GATE_A_ABLATE}" in
@@ -61,7 +75,7 @@ esac
 echo "scope=${GATE_A_SCOPE} ablate=${GATE_A_ABLATE} -> results/gate_a_${TAG}_${LEVEL}.json"
 
 # shellcheck disable=SC2086
-python -u scripts/12_peer_loop.py --monitor --no-judge ${ABL_ARGS} ${SCOPE_ARGS} \
+python -u scripts/12_peer_loop.py --monitor --no-judge ${ABL_ARGS} ${SCOPE_ARGS} ${TOK_ARGS} \
     --conditions ${CONDS} --out "results/gate_a_${TAG}_${LEVEL}.json"
 
 echo "Generation done. On the laptop, with the judge key:"
