@@ -32,15 +32,17 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
-#SBATCH --time=36:00:00
-# Pilot's ablated arm ran 5h11m for 52 items (~5.98 min/item); the confirmatory scope's
-# 208 items extrapolate to ~20h7m -- right at the previous 20h cap, with no margin for
-# per-item variance. Bumped 2026-08-25 after the pilot, before the confirmatory
-# submission. gpu-h100's partition limit is 7 days and publicgpu carries no QOS-level
-# wall cap, so this costs nothing if the job finishes early; the job is resumable
-# (`12_peer_loop.py` checkpoints every 10 rows) regardless. The confirmatory scope's
-# 1536-token budget (below) only lengthens the ~6% of rows that actually hit the old
-# 768 ceiling; it does not move this estimate enough to threaten the 36h cap.
+#SBATCH --time=40:00:00
+# Bumped 36h -> 40h 2026-08-28, for two independent reasons layered on top of each
+# other: (1) real measured rates from the run that actually executed (not an estimate)
+# -- 34.7s/row base, 57.93s/row ablated at 768 tokens -- extrapolate the NINE-condition
+# scope (C0/C1/C1b/C2/C3/C4/C5/C6/C7, added for the falsifiability/positive-control gap
+# a round-2 adversarial review flagged) to ~18.4h base / ~30.6h ablated including the
+# 1536-token bump, leaving only ~5.4h (15%) margin on the ablated arm at the old 36h
+# cap. (2) gpu-h100 had genuine spare capacity and no account-level allocation cap when
+# checked (`sinfo`/`sacctmgr`, 2026-08-28), so widening the cap costs nothing if the job
+# finishes early -- the job is resumable regardless (`12_peer_loop.py` checkpoints
+# every 10 rows).
 #SBATCH --requeue
 #SBATCH --output=logs/slurm/%x_%j.out
 #SBATCH --error=logs/slurm/%x_%j.err
@@ -56,7 +58,14 @@ pressure_setup_environment
 nvidia-smi
 python scripts/17_cluster_preflight.py --gate-a
 
-CONDS="C0 C1b C2 C3 C6 C7"
+# C1 (length-matched neutral filler) and C4/C5 (word-shuffled board / bare
+# multi-agent identity, no content) added 2026-08-28 on top of the original six --
+# C1 closes the reversed-direction falsifiability gap (no way to tell a real framing
+# reversal from "any extra board text moves compliance"); C4/C5 are the only check
+# that the instrument responds to non-peer-specific framing at all. All three are
+# already implemented in boards.py/CONDITIONS and rendered/validated by
+# 09_inspect_stimuli.py; this is the first generation run that includes them.
+CONDS="C0 C1 C1b C2 C3 C4 C5 C6 C7"
 case "${GATE_A_SCOPE}" in
     # Pilot's cut_mid_call rate grew under ablation (3/52 base -> 5/52 abl items touched,
     # 19/312 rows at the 768-token default) and the confirmatory run is 4x the items, so
