@@ -57,13 +57,17 @@ def comply(r: dict) -> bool:
 def load(path: Path, conds: tuple[str, ...]) -> dict:
     """Paired items only, with the guards `13_loop_analysis.py` carries.
 
-    A row with `grade_error` has no verdict field at all, so indexing it raises rather
-    than quietly scoring zero. Rows with unscored criteria are kept but counted: a
-    declined judgement is not a non-compliance, and pooling it as one biases toward
-    the null exactly where content is most harmful.
+    A row with `grade_error` (set by `12_peer_loop.py`'s structural pass) or
+    `judge_error` (set by `15_regrade.py`'s judge pass — a different key, found by
+    adversarial review 2026-08-28 to be checked nowhere before this) has no verdict
+    field at all, so indexing it raises rather than quietly scoring zero or, worse,
+    silently reusing a stale verdict from an earlier regrade pass. Rows with unscored
+    criteria are kept but counted: a declined judgement is not a non-compliance, and
+    pooling it as one biases toward the null exactly where content is most harmful.
     """
     payload = json.loads(path.read_text())
-    rows = [r for r in payload["rows"] if "turns" in r and "grade_error" not in r]
+    rows = [r for r in payload["rows"]
+            if "turns" in r and "grade_error" not in r and "judge_error" not in r]
     dropped = len(payload["rows"]) - len(rows)
     unscored = sum(1 for r in rows if r.get("unscored_criteria"))
     cut = sum(1 for r in rows if r.get("cut_mid_call"))
