@@ -26,7 +26,7 @@ Statistics come from `pressure.stats`, shared with `13_loop_analysis.py`. Both t
 item-level and the cluster-level test are reported for every contrast: 52 base
 scenarios x 4 prompt variants, ICC ~0.38.
 
-    uv run python scripts/19_ablation_analysis.py --harm-drift-bound 1e-4
+    uv run python scripts/19_ablation_analysis.py --harm-drift-bound 0.2
 """
 
 from __future__ import annotations
@@ -66,6 +66,7 @@ def load(path: Path, conds: tuple[str, ...]) -> dict:
     rows = [r for r in payload["rows"] if "turns" in r and "grade_error" not in r]
     dropped = len(payload["rows"]) - len(rows)
     unscored = sum(1 for r in rows if r.get("unscored_criteria"))
+    cut = sum(1 for r in rows if r.get("cut_mid_call"))
 
     by: dict = defaultdict(dict)
     for r in rows:
@@ -75,6 +76,12 @@ def load(path: Path, conds: tuple[str, ...]) -> dict:
     print(f"  {path.name}: {len(paired)} paired items, {dropped} ungraded rows dropped")
     if unscored:
         print(f"    WARNING {unscored} rows carry unscored criteria — reported, not pooled")
+    if cut:
+        # loop.py parses an unclosed <tool_call> block cut off by max_new_tokens as
+        # if it were the model's final word, so the episode ends there and the row
+        # scores non-compliant — indistinguishable from a genuine refusal.
+        print(f"    WARNING {cut} rows ended on a token-budget truncation mid-call, "
+              "not a real stop — scored non-compliant, lower bound")
     if len(paired) < len(by):
         print(f"    {len(by) - len(paired)} items dropped for incomplete condition coverage")
     return paired
@@ -176,22 +183,33 @@ def ref_trajectory(data: dict) -> dict[str, float]:
             "max": float(np.mean(maxes)), "mean": float(np.mean(means))}
 
 
-def harm_drift(data: dict) -> float:
-    """Largest within-row p_harm deviation, relative to the row's own magnitude.
+def harm_drift(data: dict) -> tuple[float, float]:
+    """Largest within-row p_harm deviation, both absolute and relative to the row's
+    own magnitude. Returns (max_absolute, max_relative).
 
     p_harm must be constant within a row. Any variation is floating-point noise from
     attention kernels tiling differently at different sequence lengths -- and it would
     look exactly like a trajectory to anyone who plotted it.
+
+    Relative alone is not safe to gate on: `p_harm` is a signed projection, not a rate,
+    so it can sit arbitrarily close to zero for a row with no belief bias either way.
+    `scale = abs(r["p_harm"]) or 1.0` only guards the exact-zero case -- a row at
+    p_harm=-0.0026 with the same ~0.08 absolute float noise every other row has reports
+    a "drift" of 30x, not because anything moved differently, but because the
+    denominator is tiny. Absolute drift is the number that actually answers "did this
+    move by more than noise"; relative is reported alongside for scale, never alone.
     """
-    worst = 0.0
+    worst_abs, worst_rel = 0.0, 0.0
     for v in data.values():
         for r in v.values():
             if "p_harm" not in r:
                 continue
             scale = abs(r["p_harm"]) or 1.0
             for t in r.get("monitor") or []:
-                worst = max(worst, abs(t["p_harm"] - r["p_harm"]) / scale)
-    return worst
+                a = abs(t["p_harm"] - r["p_harm"])
+                worst_abs = max(worst_abs, a)
+                worst_rel = max(worst_rel, a / scale)
+    return worst_abs, worst_rel
 
 
 def main() -> None:
@@ -199,8 +217,12 @@ def main() -> None:
     ap.add_argument("--base", type=Path, default=CFG.results_dir / "gate_a_pilot_base_judged.json")
     ap.add_argument("--abl", type=Path, default=CFG.results_dir / "gate_a_pilot_abl_judged.json")
     ap.add_argument("--json", type=Path, default=CFG.results_dir / "gate_a_analysis.json")
-    ap.add_argument("--harm-drift-bound", type=float, default=1e-4,
-                    help="relative bound established by Gate A2")
+    ap.add_argument("--harm-drift-bound", type=float, default=0.2,
+                    help="ABSOLUTE bound established by Gate A2 (max observed 0.14 "
+                         "control / 0.09 ablated, 2026-08-25). Was a 1e-4 relative-drift "
+                         "placeholder before A2 ran, then a mis-scaled 0.05 relative "
+                         "bound that a near-zero-p_harm row could trip by noise alone -- "
+                         "see harm_drift()'s docstring")
     ap.add_argument("--reps", type=int, default=20000)
     args = ap.parse_args()
 
@@ -281,10 +303,13 @@ def main() -> None:
     # --- 3. monitors --------------------------------------------------------
     print("\n3. DIRECTION MONITORS  (orthogonal to r_arditi; p_ref at turn 1)")
     for name, data in (("base", base), ("ablated", abl)):
-        drift = harm_drift(data)
-        verdict = "ok" if drift <= args.harm_drift_bound else "EXCEEDS BOUND"
-        print(f"  {name:8} max within-row p_harm drift {drift:.2e} "
-              f"(bound {args.harm_drift_bound:.0e}) — {verdict}")
+        drift_abs, drift_rel = harm_drift(data)
+        # Gate on absolute drift: relative blows up whenever a row's own p_harm sits
+        # near zero, which is common for a signed projection and is not itself a
+        # problem. A2 (2026-08-25, C1b only) measured max absolute drift 0.14/0.09.
+        verdict = "ok" if drift_abs <= args.harm_drift_bound else "EXCEEDS BOUND"
+        print(f"  {name:8} max within-row p_harm drift {drift_abs:.3f} absolute, "
+              f"{drift_rel:.2e} relative (bound {args.harm_drift_bound}) — {verdict}")
 
     mon: dict[str, dict] = {}
     for name, data in (("base", base), ("ablated", abl)):
