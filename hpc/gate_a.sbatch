@@ -4,7 +4,8 @@
 # One level per job. Two environment variables select what this job runs:
 #
 #   GATE_A_SCOPE=pilot   52 items, one balanced variant per cluster  (~5h)
-#   GATE_A_SCOPE=full    the full 208-item corpus                    (~18h)
+#   GATE_A_SCOPE=full    the full 208-item corpus              (~20h/arm at 768 tok;
+#                        see the #SBATCH --time block below for the 1536-token estimate)
 #   GATE_A_ABLATE=0      no intervention
 #   GATE_A_ABLATE=1      ablate r_arditi with ablate_all_components
 #
@@ -72,7 +73,16 @@ case "${GATE_A_ABLATE}" in
     1) ABL_ARGS="--ablate";  LEVEL="abl"  ;;
     *) echo "GATE_A_ABLATE must be '0' or '1', got '${GATE_A_ABLATE}'" >&2; exit 1 ;;
 esac
-echo "scope=${GATE_A_SCOPE} ablate=${GATE_A_ABLATE} -> results/gate_a_${TAG}_${LEVEL}.json"
+# Defense in depth, not a substitute for verifying `hpc/sync.sh` actually shipped this
+# file before submitting (a stale synced copy predating this check would not run it
+# either) -- but catches a future edit to the case block above that forgets to keep
+# scope=full and the token bump in sync with each other.
+if [ "${GATE_A_SCOPE}" = "full" ] && [ "${TOK_ARGS}" != "--max-new-tokens 1536" ]; then
+    echo "GATE_A_SCOPE=full must run with --max-new-tokens 1536, got TOK_ARGS='${TOK_ARGS}'" >&2
+    echo "-- refusing to generate at the old (768) budget. Fix the case block above." >&2
+    exit 1
+fi
+echo "scope=${GATE_A_SCOPE} ablate=${GATE_A_ABLATE} conds=[${CONDS}] tok_args=[${TOK_ARGS}] scope_args=[${SCOPE_ARGS}] -> results/gate_a_${TAG}_${LEVEL}.json"
 
 # shellcheck disable=SC2086
 python -u scripts/12_peer_loop.py --monitor --no-judge ${ABL_ARGS} ${SCOPE_ARGS} ${TOK_ARGS} \
