@@ -119,7 +119,8 @@ class Directions:
 
 
 @torch.no_grad()
-def projections(model, tok, prompt: str, task_text: str, dirs: Directions) -> dict:
+def projections(model, tok, prompt: str, task_text: str, dirs: Directions,
+                 task_search_upto: int | None = None) -> dict:
     """Raw and orthogonalised projections at three sites, from one forward pass.
 
     Calls `model.model(...)`, not `model(...)`: the hooks live on `model.model.layers`
@@ -129,8 +130,13 @@ def projections(model, tok, prompt: str, task_text: str, dirs: Directions) -> di
     Runs its own prefill rather than reusing `generate`'s, because `capture_residual`
     fires on every forward call including each single-token decode step, where
     prompt-relative indices are meaningless.
+
+    `task_search_upto`: see `resolve_positions` — bounds where `task_text` is searched
+    for, so a later turn's growing `prompt` can't have `task_last` hijacked by the
+    model's own echo of the task text. The caller (`12_peer_loop.py`) passes the
+    length of the turn-0 prompt on every call, not just the first.
     """
-    pos = resolve_positions(tok, prompt, task_text)
+    pos = resolve_positions(tok, prompt, task_text, search_upto=task_search_upto)
     enc = tok(prompt, return_tensors="pt", add_special_tokens=False)
     enc = {k: v.to(model.device) for k, v in enc.items()}
     seq_len = enc["input_ids"].shape[1]
@@ -154,6 +160,23 @@ def projections(model, tok, prompt: str, task_text: str, dirs: Directions) -> di
 
     h_harm, h_ref = at["harm"][dirs.harm_layer], at["ref"][dirs.ref_layer]
     v_harm, v_ref = dirs.r_harm[dirs.harm_layer], dirs.r_ref[dirs.ref_layer]
+
+    # Every layer's activation at the harm/ref token position is already sitting in
+    # `at` — the hook fires on every block regardless of which single layer is the
+    # AUROC-selected "official" one. Recording the full profile costs one dot product
+    # per layer (no extra forward pass) and is orthogonalisation-valid at every layer,
+    # not just the selected one, because `ablate_all_components` zeroes r_arditi's
+    # component at every layer's residual stream, not only `arditi_layer`'s. Added
+    # 2026-08-28 for future robustness checks (e.g. is harm_layer/ref_layer actually
+    # the best choice, does the signal appear earlier/later) that a single-layer trace
+    # can't answer without a full rerun.
+    by_layer_harm = [float(at["harm"][l] @ dirs.r_harm[l]) for l in range(dirs.n_layers)]
+    by_layer_ref = [float(at["ref"][l] @ dirs.r_ref[l]) for l in range(dirs.n_layers)]
+    by_layer_harm_orth = [float(at["harm"][l] @ orthogonal_to(dirs.r_harm[l], dirs.r_arditi))
+                           for l in range(dirs.n_layers)]
+    by_layer_ref_orth = [float(at["ref"][l] @ orthogonal_to(dirs.r_ref[l], dirs.r_arditi))
+                          for l in range(dirs.n_layers)]
+
     return {
         "p_harm": float(h_harm @ v_harm),
         "p_ref": float(h_ref @ v_ref),
@@ -164,4 +187,8 @@ def projections(model, tok, prompt: str, task_text: str, dirs: Directions) -> di
         "i_arditi": i_arditi,
         "i_harm": pos["task_last"],
         "i_ref": pos["context_last"],
+        "p_harm_by_layer": by_layer_harm,
+        "p_ref_by_layer": by_layer_ref,
+        "p_harm_orth_by_layer": by_layer_harm_orth,
+        "p_ref_orth_by_layer": by_layer_ref_orth,
     }

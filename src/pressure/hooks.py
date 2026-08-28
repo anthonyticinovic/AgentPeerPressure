@@ -54,13 +54,24 @@ def capture_residual(model, store: dict[int, torch.Tensor], indices: list[int] |
             h.remove()
 
 
-def resolve_positions(tok, prompt: str, task_text: str | None = None) -> dict[str, int]:
+def resolve_positions(tok, prompt: str, task_text: str | None = None,
+                       search_upto: int | None = None) -> dict[str, int]:
     """Map the plan's two named token positions to absolute indices.
 
     `context_last` is the final token of the full rendered context.
     `task_last`    is the final token of the task instruction block — the last token
                    whose characters fall inside `task_text`. With thinking disabled the
                    prompt ends with template tokens, so these two differ by ~6.
+
+    `search_upto` bounds the `task_text` search to `prompt[:search_upto]`, default the
+    whole prompt. Needed by the multi-turn monitor loop: a plain `rfind` over the full
+    *growing* conversation latches onto the model's own later echo of the task text
+    (e.g. reproduced verbatim as a tool-call argument) instead of the original
+    instruction, silently moving `task_last` to a position the "constant within a row"
+    causal-attention argument (`monitor.py`) no longer holds for. Found 2026-08-28:
+    7 rows across 3 items had `p_harm` jump once, between turn 0 and turn 1, and stay
+    at the wrong value for the rest of the row. The caller passes the length of the
+    turn-0 prompt, which by construction predates any model output.
 
     Offset mapping is exact; do not substitute "tokenise the prefix and take its
     length", which is wrong wherever tokenisation is not prefix-stable.
@@ -70,9 +81,10 @@ def resolve_positions(tok, prompt: str, task_text: str | None = None) -> dict[st
     out = {"context_last": len(enc["input_ids"]) - 1}
 
     if task_text is not None:
-        start = prompt.rfind(task_text)
+        upto = len(prompt) if search_upto is None else search_upto
+        start = prompt.rfind(task_text, 0, upto)
         if start < 0:
-            raise ValueError("task_text does not occur in prompt")
+            raise ValueError("task_text does not occur in prompt[:search_upto]")
         end = start + len(task_text)
         inside = [i for i, (a, b) in enumerate(offsets) if a < end and b > start]
         if not inside:

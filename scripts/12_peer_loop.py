@@ -220,8 +220,20 @@ def main() -> None:
             # The monitor call sits *inside* the ablation context deliberately: under
             # ablation the projections must be read off the ablated stream.
             trace: list[dict] = []
-            hook = (lambda p: trace.append(projections(model, tok, p, r["task"], dirs))) \
-                if args.monitor else None
+            # `task_bound` fixes the task-text search window at the turn-0 prompt's
+            # length, captured on the first call (before any model output exists) and
+            # reused on every later call — otherwise a later turn's growing prompt can
+            # match the model's own echo of the task text instead of the original
+            # instruction (see resolve_positions' docstring). A mutable single-element
+            # list stands in for a nonlocal int, set once per row.
+            task_bound: list[int] = []
+
+            def hook(p: str, _bound=task_bound) -> None:
+                if not _bound:
+                    _bound.append(len(p))
+                trace.append(projections(model, tok, p, r["task"], dirs, task_search_upto=_bound[0]))
+
+            hook = hook if args.monitor else None
             ctx = ablate_all_components(model, dirs.r_arditi) if args.ablate else nullcontext()
             with ctx:
                 turns = run_loop(
@@ -246,6 +258,12 @@ def main() -> None:
             r["n_turns"] = len(turns)
             r["called"] = [c["function"] for t in turns for c in t.calls]
             r["cut_mid_call"] = any(t.cut_mid_call for t in turns)
+            # Recorded per row, not just once in file-level `meta`: a wrong or stale
+            # token budget silently governing a run (2026-08-28 — the confirmatory job
+            # ran at 768 despite a committed fix for 1536) was only found by an
+            # across-run leave-one-cluster-out sweep. `set(r["max_new_tokens"] for r in
+            # rows)` now answers the same question from one file in one line.
+            r["max_new_tokens"] = args.max_new_tokens
         try:
             sc = (grade if args.no_judge else grade_with_judge)(r, as_inspect_messages(turns))
             r.pop("grade_error", None)
