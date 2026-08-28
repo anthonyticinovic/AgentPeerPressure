@@ -14,3 +14,4 @@ results/
 !artifacts/frozen/*.npz
 .git_sha
 .filelist
+logs/
