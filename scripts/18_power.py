@@ -85,6 +85,26 @@ def main() -> None:
     # an item that never acts, so injecting it corpus-wide would overstate power.
     live = [k for k in ks if any(bool(items[k][c]["called"]) for c in conds)]
     base = {k: bool(full(items[k][args.ref])) for k in ks}
+
+    # Background discordance. An earlier version only ever injected a forward flip, so
+    # `c` (arm loses to ref) was 0 by construction on every simulated draw. McNemar's
+    # exact p-value with c=0 collapses to 2**(1-b), which goes significant by b~=6
+    # almost regardless of n -- every power number in the curve was inflated by this,
+    # not just imprecise. `p_noise_up`/`p_noise_down` are the real per-group rates
+    # actually observed between --ref and --arm -- b_real over the items that started
+    # False, c_real over the items that started True -- not one blended constant: a
+    # cold review found a single `(b_real+c_real)/(2*n)` applied to both groups halves
+    # the real total when the groups are equal size, and badly misrepresents it when
+    # they're not (here 165 vs 43). Grounding each direction in its own real rate,
+    # rather than inventing one, makes the curve reproduce the real noise level, not
+    # merely "at least" it.
+    ref_false = [k for k in ks if not base[k]]
+    ref_true = [k for k in ks if base[k]]
+    b_real = sum(1 for k in ref_false if full(items[k][args.arm]))
+    c_real = sum(1 for k in ref_true if not full(items[k][args.arm]))
+    p_noise_up = b_real / max(len(ref_false), 1)
+    p_noise_down = c_real / max(len(ref_true), 1)
+
     curve = {}
     for eff in (2, 3, 5, 7.5, 10, 15):
         hits = 0
@@ -93,8 +113,13 @@ def main() -> None:
             for k in ks:
                 ref_v = base[k]
                 arm_v = ref_v
-                if k in live and not ref_v and rng.random() < eff / 100 * len(ks) / len(live):
+                r = rng.random()
+                p_up = min(1.0, p_noise_up +
+                           (eff / 100 * len(ks) / len(live) if k in live else 0.0))
+                if not ref_v and r < p_up:
                     arm_v = True
+                elif ref_v and r < p_noise_down:
+                    arm_v = False
                 b += arm_v and not ref_v
                 c += ref_v and not arm_v
             hits += mcnemar_exact(b, c) < 0.05
