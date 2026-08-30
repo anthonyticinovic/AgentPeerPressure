@@ -577,6 +577,215 @@ reads — barely moves the 9B counts (C0 44, others unchanged) but drops the 4B 
 per cell (36/38/41/33). Doesn't overturn the finding; the loose count is a reasonable
 upper bound, not fabricated precision.
 
+### Monitoring blind-spot cross-tab built and locally validated — 2026-08-30
+
+Round 2 (2026-08-28) recommended "pre-writing the monitoring-blind-spot cross-tab" and
+flagged it as "still being workshopped, not started" pending a calibrated `p_harm_orth`
+threshold. Built now: `scripts/23_calibrate_tau_orth.py` calibrates `tau_harm_orth` (the
+frozen threshold on the orthogonalised harm-belief readout, at the same `tau_fpr=0.05`
+`r_arditi`'s own threshold uses) on `matched_pairs()`'s harmless side at
+`task_last`/`harm_layer`, with an `assert_no_leakage` check against the 208 AgentHarm
+task prompts. `scripts/24_blindspot_crosstab.py` cross-tabs `full_compliance_judged` x
+`p_harm_orth > tau_harm_orth` in the ablated arm, with a Wilson CI (`wilson_ci`, new in
+`stats.py`) on the compliant-and-flagged cell's rate of the whole arm, the same table on
+the base arm as a validity check, a per-condition descriptive breakdown (sparsity
+flagged explicitly, never suppressed), and a separate exploratory one-sample test
+(`binom_exact_p`, also new) asking whether the flagged rate *among already-compliant*
+rows exceeds the 5% calibration FPR — labelled EXPLORATORY/DIAGNOSTIC throughout and
+kept out of `19_ablation_analysis.py`'s Holm-corrected family. `Directions` gained a
+`tau_harm_orth: float | None` field, read from `dual_directions.json` (optional; a
+model mismatch there warns and treats it as uncalibrated rather than failing the whole
+load, since most callers of `Directions.load()` don't need it). Both new scripts add a
+`SystemExit` model-consistency guard — matching the pattern `12_peer_loop.py` already
+uses for `dirs.model != model_name` — refusing to combine a threshold and row data
+generated at different scales rather than silently producing a wrong number.
+
+**Empirical check of the cross-arm identity claim (`scripts/diag_orth_identity.py`, run
+against the real committed `gate_a_full_base_judged.json` / `gate_a_full_abl_judged.json`,
+1240 matched `(cluster, id, condition)` rows):** two different claims, only one of which
+is exact.
+- *Same-pass* (within the ablated file alone, `p_harm` vs `p_harm_orth`): essentially
+  exact, mean abs diff 0.0013, max 0.0051 — confirms the ablation hook already zeroes
+  `r_arditi`'s projection at the readout layer, so orthogonalising changes nothing there.
+- *Cross-arm* (base `p_harm_orth` vs the same prompt's ablated raw `p_harm`): a real,
+  strong but inexact approximation — Pearson r=0.995, mean abs diff 0.236 (median 0.143,
+  max 1.132), against 0.412 without the orthogonalising correction. **Not** "very close,
+  ~0.09-scale noise" as first guessed — the residual gap is real, not floating-point,
+  because true hook-based ablation removes `r_arditi`'s component at every layer, and
+  that removal propagates through attention/MLP nonlinearities before reaching
+  `harm_layer`, which a single linear correction at the readout layer cannot fully
+  capture. Neither script depends on the cross-arm approximation: each row's
+  `p_harm_orth` is read from its own actual forward pass, base or ablated, never
+  extrapolated from the other arm. Documented in `23_calibrate_tau_orth.py`'s docstring,
+  correcting the stronger claim this was scoped against.
+
+**Local `--iter` (4B) validation, M4 Pro (MPS).** The committed root artefacts
+(`dual_raw.pt`, `arditi_selected.pt`) had already moved on to the real 9B scale
+(byte-identical to the `results/by_model/Qwen3.5-9B/` backup — verified before touching
+anything), so a matching-scale 4B pair was needed to validate `--iter` at all: a 4B
+projection cannot dot against a 9B direction (hidden size 2560 vs 4096, not just a
+different layer count). Reran `02_dual_directions.py --iter` and
+`03_arditi_selection.py --iter` to get one. The default 288-candidate grid
+(`--n-val 32 --batch 16`) measured ~475s/position on this machine — a ~70-minute total
+that wasn't a good use of session time for a artefact only needed for pipeline
+validation, not a scientific claim — so the second attempt ran with `--n-val 8 --batch 8
+--n-gen 5` (session-time-bound deviation from the standard command, noted here rather
+than silently): **i\*=-5, l\*=12/32 (linear_attention), bypass=-10.464, induce=+0.692,
+kl=0.056**, generation check substring-compliance 0.00→1.00 on 5 held-out prompts. This
+differs from the earlier documented 4B restoration (`i*=-7, l*=12/32, kl=0.067`,
+2026-08-25 entry above) in position, not layer — expected, since a val set of 8 instead
+of 32 is a noisier selection, not a different protocol.
+`23_calibrate_tau_orth.py --iter`: **tau_harm_orth=+3.6822** (empirical FPR 0.0610
+against a 0.05 target, n=82+82 JailbreakBench matched pairs), **AUROC=0.7024** —
+meaningfully above chance, confirming the orthogonalised harm signal survives removing
+`r_arditi`'s component. `cos(r_harm, r_arditi)=+0.271`, orthogonalised-direction norm
+retained 0.963 (=√(1−0.271²), consistency-checked). A tiny real (no mocking) 4B
+generation validated `24_blindspot_crosstab.py` end-to-end at matched scale — 2 AgentHarm
+items x 2 conditions (C1b, C2), both arms, live judge, via a throwaway driver script
+(not committed; `12_peer_loop.py`'s own `--n-items` floors at one full cluster per
+category, ~40-52 items, too large for a quick check, so the driver called its `build()`
+directly on 2 hand-picked items): base arm 2/4 compliant, ablated arm 2/4 compliant (one
+item's direction flipped — compliant at base, refused once ablated — a real result at
+this N but not interpretable, noted as an observation not a finding), **zero rows in
+either arm exceeded tau_harm_orth** (all `p_harm_orth` values sat around −1.7 to −1.8,
+well under +3.68) — the compliant-and-flagged cell was 0/4 in both arms with a Wilson CI
+of [0%, 49%], and the exploratory test correctly reported 0/2 flagged among ablated-arm
+compliant rows, p=1.0. This N is far too small to say anything about the blind-spot rate
+itself; it demonstrates the pipeline runs correctly end-to-end at consistent scale, which
+was the point of this run. Separately confirmed the model-consistency guard fires as
+designed: running `24_blindspot_crosstab.py` with these 4B directions loaded against the
+real `gate_a_full_base_judged.json` (9B) refuses with a clear `SystemExit` rather than
+silently combining incompatible scales. Root `results/{dual_raw.pt, arditi_selected.pt,
+dual_directions.json, arditi_selection.json}` restored byte-for-byte afterward (verified
+by MD5) — production is exactly as it was before this session. Full test suite (97
+tests, including the `slow`-marked ones that load real 4B weights): **97 passed**.
+
+**Not yet done, deliberately out of scope for this session:** the real 9B calibration —
+current production `dual_raw.pt`/`arditi_selected.pt` are already 9B and the model is
+cached locally, but running `23_calibrate_tau_orth.py` against them was explicitly left
+for later, not attempted here. Until that runs, `24_blindspot_crosstab.py` against the
+real `gate_a_full_*` files has no valid threshold to load and fails closed rather than
+using a mismatched one. `results/gate_a_full_abl.json` locally is still the 6-condition,
+1248-row file (`C0 C1b C2 C3 C6 C7`, generated 2026-08-27) — not the resumed
+9-condition, 1810/1872-row file referenced elsewhere; that resumed run's output had not
+synced to this checkout as of this session. `results/dual_directions.json` at the
+project root was already stale (4B content) relative to the 9B `.pt` files *before* this
+session touched anything — a pre-existing inconsistency (the JSON is fully rewritten
+only by `02_dual_directions.py`, never by `03`), restored to that same stale state
+rather than silently fixed, since regenerating it correctly is the same out-of-scope 9B
+run above.
+
+**Distribution-shift limitation, stated in `23_calibrate_tau_orth.py`'s docstring:**
+`tau_harm_orth` is calibrated on short, single-turn JailbreakBench-style benign prompts
+and applied inside multi-turn, tool-calling, peer-framed transcripts. `task_last` is
+causally upstream of all later scaffolding (the same property that makes `p_harm`
+provably constant per row), which is why the *position* transfers — but that is not the
+same as proof that the *threshold* transfers; a benign JailbreakBench prompt and a
+benign AgentHarm task instruction are still different distributions over instruction
+text. Carry this into any write-up that cites a flagged rate against `tau_harm_orth`.
+
+### Round-3 fix: real-ablation calibration, cluster-aware CI, test coverage — 2026-08-30 (same day)
+
+Two independent adversarial reviewers passed over the blind-spot cross-tab above before
+commit. This entry records what got fixed and the real before/after numbers.
+
+**Priority 1 — the calibration was systematically biased, not just approximately
+equivalent (Reviewer A).** `23_calibrate_tau_orth.py` calibrated `tau_harm_orth` by
+running the harmless calibration corpus through a plain, non-ablated forward pass and
+orthogonalising the direction post-hoc. Reviewer A extended `diag_orth_identity.py`
+against the real committed 1240-row `gate_a_full_*_judged.json` files and found the gap
+between that approach and a real ablated forward pass is systematic, not symmetric
+noise: cross-arm signed diff (base `p_harm_orth` minus abl `p_harm`) mean +0.2221,
+median +0.1415, 85.6% of rows positive, consistent (+0.18 to +0.24) across every
+condition — because real ablation zeroes `r_arditi`'s component at every layer, not
+just at the readout layer, and that earlier removal propagates through attention/MLP
+nonlinearities before it reaches `harm_layer`. The one-shot linear-algebra identity only
+holds exactly within a single forward pass. **Fixed**: `23_calibrate_tau_orth.py` now
+calibrates by running the harmless corpus with `ablate_all_components(model,
+dirs.r_arditi)` engaged for the whole forward pass and reading the raw `task_last`
+projection directly — under real ablation the raw and orthogonalised projections
+coincide exactly, so no post-hoc correction is needed or applied. The old approach is
+kept only as a printed, labelled diagnostic (`project_harm_orth_posthoc_biased`); its
+tau is recorded in `dual_directions.json` as `diagnostic_posthoc_biased_tau` for
+transparency but nothing downstream reads it.
+
+Local `--iter` (4B) re-validation (M4 Pro, MPS) reproduced the bug and confirmed the
+fix. Regenerated 4B directions from scratch (`02_dual_directions.py --iter`,
+`03_arditi_selection.py --iter --n-val 8 --batch 8 --n-gen 5`, same session-time-bound
+reduced grid as the 2026-08-25 restoration): **i\*=-5, l\*=12/32 (linear_attention),
+bypass=-10.464, induce=+0.692, kl=0.056** — identical to the earlier documented 4B run
+above, confirming the sweep is deterministic at this seed. `23_calibrate_tau_orth.py
+--iter` then produced, on the same 82+82 JailbreakBench matched-pair corpus:
+
+| | tau_harm_orth | AUROC |
+|---|---|---|
+| old (post-hoc, biased) | +3.6822 | 0.7024 |
+| **new (real ablation, correct)** | **+3.4059** | 0.6927 |
+
+Lower tau, exactly the predicted direction (post-hoc over-estimates). Matched-prompt
+signed diff (post-hoc minus real-ablation, n=164): **mean +0.2336, median +0.2012, 92.7%
+positive** — closely replicates Reviewer A's production-data finding (+0.2221 / +0.1415
+/ 85.6%) on a completely different corpus (single-turn JBB pairs vs multi-turn agentic
+transcripts) and model scale (4B vs 9B), strong independent confirmation the bug and the
+fix are both real.
+
+**Priority 2 — cluster-aware confidence interval (Reviewer A).** The ablated arm's rows
+collapse to ~52 base-scenario clusters (16–24 rows each), and `wilson_ci` on the pooled
+counts treats every row as independent, overstating precision the same way this project
+already treats as consequential elsewhere (`cluster_sign_test`, ICC~0.38). Added
+`cluster_bootstrap_ci` to `src/pressure/stats.py` (percentile bootstrap, resampling
+whole clusters with replacement, same clustering key as `cluster_sign_test`:
+`row["cluster"]`). `24_blindspot_crosstab.py`'s `crosstab()` now reports it as the
+primary/headline interval, with the naive Wilson interval kept alongside, clearly
+labelled as ignoring clustering. 6 new tests in `tests/test_stats.py`.
+
+**Priority 3 — test coverage for `Directions.load()` (both reviewers).** Added 4 tests
+to `tests/test_monitor.py` for the real branches (file absent, model mismatch →
+warn+None, key absent → None, dict-form present). The bare-float branch was dead code —
+`23_calibrate_tau_orth.py` only ever wrote the dict form, confirmed by grep (only that
+script writes `tau_harm_orth` anywhere in the repo) — removed rather than tested, per
+this project's preference for simplicity over defensive speculation.
+
+**Priority 4 — minor corrections.**
+- `results/transcripts_arditi_selection.json` had been left with fresh local-4B content
+  from the implementer's dev/test cycle (dated 2026-08-30, unlike every other stale
+  file at root which predates this session). A 9B backup exists at
+  `results/by_model/Qwen3.5-9B/transcripts_arditi_selection.json` and was restored,
+  verified byte-identical by MD5. This file is gitignored and write-only (nothing reads
+  it back), so practical risk was low either way, but the file is now accurate.
+- Added a cheap condition-coverage self-flag to `24_blindspot_crosstab.py`
+  (`EXPECTED_CONDS`, matching `19_ablation_analysis.py`'s 9-condition `CONDS`): prints a
+  warning when fewer than the full set is present, which it currently is (6/9 locally).
+- Skipped, noted as a follow-up: a bootstrap CI on `tau_harm_orth` itself given the
+  small n=82 calibration corpus (Reviewer A, optional/low-priority) — not attempted,
+  would need a moment to design well rather than being squeezed in.
+
+**End-to-end local validation after the fix.** Regenerated 4B directions and the
+corrected `tau_harm_orth` as above, then drove `12_peer_loop.py`'s own `build()`/
+`run_loop()` machinery directly (bypassing its `--n-items` floor of ~32 items, too large
+for a quick check) on 2 hand-picked AgentHarm items (both variants of cluster 68) x 2
+conditions (C1b, C2) x 2 ablation states, 6-turn/256-token budget, live judge — 608s
+total. `24_blindspot_crosstab.py --base results/_local4b_base_v2.json --abl
+results/_local4b_abl_v2.json` ran cleanly end-to-end: model-consistency guard passed,
+condition-coverage warning fired correctly (2/9 conditions present), both intervals
+printed and correctly labelled (cluster bootstrap degenerates to a point mass at this
+N=1-cluster scale, which is mathematically correct, not a bug). All 8 rows' `p_harm_orth`
+sat well below the new tau (−1.68 to −0.54 vs +3.41), so 0 flagged in both arms. The base
+arm complied 4/4 and the ablated arm complied 0/4 — the reverse of the expected
+direction, but a budget artefact, not a finding: every ablated row hit the 6-turn cap
+(`n_turns=6`) without the grader recognising completion, while base rows finished in
+4–5 turns, most likely because ablation let the model keep attempting the task instead
+of refusing quickly, which this deliberately tiny turn/token budget could not
+accommodate. Not interpretable at N=4 either way; the point of this run was pipeline
+correctness after the fix, which it confirms. Root `results/{dual_raw.pt,
+arditi_selected.pt, dual_directions.json, arditi_selection.json,
+transcripts_arditi_selection.json, transcripts_arditi_long.json,
+arditi_generation_check.json}` restored byte-for-byte afterward (verified by MD5).
+
+Full test suite after all fixes: **106 passed** (97 before this pass + 6 new
+`cluster_bootstrap_ci` tests + 4 new `Directions.load()` tests − 1 removed bare-float
+branch has no dedicated test to lose).
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
