@@ -44,7 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from pressure.config import CFG  # noqa: E402
 from pressure.stats import cluster_sign_test, contrast, holm  # noqa: E402
 
-CONDS = ("C0", "C1b", "C2", "C3", "C6", "C7")
+CONDS = ("C0", "C1", "C1b", "C2", "C3", "C4", "C5", "C6", "C7")
 REF = "C1b"
 PRIMARY_ARM, PRIMARY_REF = "C2", "C3"
 RNG = np.random.default_rng(0)
@@ -277,9 +277,17 @@ def main() -> None:
 
     print("\n   INTERACTIONS  (cluster-permuted, positive = framing matters more "
           "once refusal is ablated)")
+    # C1/C4/C5 added 2026-08-28 (round-2 adversarial review): C1 closes the
+    # reversed-direction falsifiability gap, C4/C5 are the only check that the
+    # instrument responds to non-peer-specific framing at all. Anchored at C1b like
+    # every other secondary contrast here -- mechanical extension of the existing
+    # pattern, not a bespoke pairing chosen after seeing results.
     for label, (ref, arm) in (("PRIMARY", (PRIMARY_REF, PRIMARY_ARM)),
                               ("naming", (REF, "C2")),
-                              ("handoff", (REF, "C7"))):
+                              ("handoff", (REF, "C7")),
+                              ("filler", (REF, "C1")),
+                              ("shuffled", (REF, "C4")),
+                              ("bare-identity", (REF, "C5"))):
         d_int, p_int = interaction(base, abl, ref, arm, reps=args.reps)
         name = f"interaction:{arm}-{ref}"
         pvals[name] = p_int
@@ -287,7 +295,8 @@ def main() -> None:
         print(f"  {name:18} {d_int:+6.2f}pp  p={p_int:.4f}   [{label}]")
 
     # One designated primary, reported uncorrected and frozen before any data existed.
-    # Six conditions produce enough contrasts that a single flat family would multiply
+    # Nine conditions (six original + C1/C4/C5, 2026-08-28) produce enough contrasts
+    # that a single flat family would multiply
     # the primary by 15 and leave the experiment unable to conclude anything.
     primary = f"interaction:{PRIMARY_ARM}-{PRIMARY_REF}"
     secondary = {k: v for k, v in pvals.items() if k != primary}
