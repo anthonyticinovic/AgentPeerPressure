@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import torch
 
@@ -14,6 +16,21 @@ def make_dirs(**kw):
     )
     base.update(kw)
     return Directions(**base)
+
+
+def write_pt_artifacts(results_dir, model: str = "test/model") -> None:
+    """The two .pt caches `Directions.load()` reads -- minimal shapes matching
+    `make_dirs()`'s convention (hidden=4, 4 layers)."""
+    torch.save(
+        {"model": model, "r_arditi": torch.tensor([1.0, 0.0, 0.0, 0.0]),
+         "position": -3, "layer": 3},
+        results_dir / "arditi_selected.pt",
+    )
+    torch.save(
+        {"model": model, "r_harm": torch.eye(4), "task_last": {"l_star": 1},
+         "r_ref": torch.eye(4), "context_last": {"l_star": 2}},
+        results_dir / "dual_raw.pt",
+    )
 
 
 def test_rejects_layer_outside_range():
@@ -124,3 +141,44 @@ def test_capture_under_ablation_sees_the_ablated_stream():
     proj_after = abs(float(after[1][0] @ v))
     assert proj_before > 1e-3, f"direction carries no signal to begin with: {proj_before}"
     assert proj_after < 1e-5, f"capture saw an unablated stream: {proj_after}"
+
+
+# --- Directions.load()'s tau_harm_orth branches ----------------------------------
+# dual_directions.json is optional and, unlike the .pt pairing, a stale model there is
+# warned rather than fatal -- see load()'s comment. Four real branches, each tested
+# once: file absent, model mismatch, key absent, dict-form present. No bare-float
+# branch exists any more (nothing ever wrote one -- see load()'s comment).
+
+
+def test_load_without_dual_directions_json_leaves_tau_none(tmp_path):
+    write_pt_artifacts(tmp_path)
+    dirs = Directions.load(tmp_path)
+    assert dirs.tau_harm_orth is None
+
+
+def test_load_warns_and_ignores_tau_on_model_mismatch(tmp_path, capsys):
+    write_pt_artifacts(tmp_path, model="test/model")
+    (tmp_path / "dual_directions.json").write_text(json.dumps({
+        "model": "some/other-model",
+        "tau_harm_orth": {"value": 3.5},
+    }))
+    dirs = Directions.load(tmp_path)
+    assert dirs.tau_harm_orth is None
+    assert "WARNING" in capsys.readouterr().out
+
+
+def test_load_with_no_tau_key_leaves_tau_none(tmp_path):
+    write_pt_artifacts(tmp_path)
+    (tmp_path / "dual_directions.json").write_text(json.dumps({"model": "test/model"}))
+    dirs = Directions.load(tmp_path)
+    assert dirs.tau_harm_orth is None
+
+
+def test_load_reads_the_dict_form_tau(tmp_path):
+    write_pt_artifacts(tmp_path)
+    (tmp_path / "dual_directions.json").write_text(json.dumps({
+        "model": "test/model",
+        "tau_harm_orth": {"value": 3.6822, "fpr": 0.05},
+    }))
+    dirs = Directions.load(tmp_path)
+    assert dirs.tau_harm_orth == pytest.approx(3.6822)

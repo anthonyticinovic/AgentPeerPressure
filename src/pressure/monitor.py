@@ -35,6 +35,7 @@ its scale; the analysis asserts real data stays under that bound.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,6 +62,10 @@ class Directions:
     r_ref: torch.Tensor      # (n_layers, hidden), unit rows
     ref_layer: int
     model: str
+    tau_harm_orth: float | None = None  # frozen threshold on p_harm_orth, see
+    # scripts/23_calibrate_tau_orth.py. None until that script has run for this model;
+    # callers that need it (scripts/24_blindspot_crosstab.py) check and fail loudly
+    # themselves rather than this generic loader guessing what each caller requires.
 
     def __post_init__(self) -> None:
         n = self.r_harm.shape[0]
@@ -106,6 +111,32 @@ class Directions:
                 "Rebuild both at the same scale. A layer-count check cannot catch this "
                 "because both models have 32 layers."
             )
+
+        # tau_harm_orth lives in dual_directions.json, not the .pt caches -- it is a
+        # scalar written by scripts/23_calibrate_tau_orth.py, not a tensor. The JSON is
+        # optional here (older artefact sets predate it) and, unlike the .pt pairing
+        # above, a model mismatch is warned rather than fatal: dual_directions.json has
+        # been found stale relative to the .pt files in this project before (it is
+        # fully rewritten by 02_dual_directions.py and only patched in place by 23's
+        # --iter reruns, never touched by 03, so the two can drift out of sync), and
+        # most callers of Directions.load() (e.g. 12_peer_loop.py) do not need tau at
+        # all. A caller that does need it (24_blindspot_crosstab.py) checks for None
+        # itself and fails loudly there, where the message can be specific.
+        tau_harm_orth = None
+        json_path = results_dir / "dual_directions.json"
+        if json_path.exists():
+            meta = json.loads(json_path.read_text())
+            if meta.get("model") != a["model"]:
+                print(f"WARNING: {json_path} is for {meta.get('model')} but the loaded "
+                      f"directions are {a['model']}; ignoring its tau_harm_orth (stale).")
+            else:
+                # 23_calibrate_tau_orth.py only ever writes the dict form (value plus
+                # calibration metadata) -- no bare-float branch here, since nothing
+                # produces one and testing a shape nothing writes is speculative, not
+                # defensive.
+                tau = meta.get("tau_harm_orth")
+                tau_harm_orth = float(tau["value"]) if isinstance(tau, dict) else None
+
         return cls(
             r_arditi=a["r_arditi"].float(),
             arditi_position=int(a["position"]),
@@ -115,6 +146,7 @@ class Directions:
             r_ref=d["r_ref"].float(),
             ref_layer=int(d["context_last"]["l_star"]),
             model=a["model"],
+            tau_harm_orth=tau_harm_orth,
         )
 
 
