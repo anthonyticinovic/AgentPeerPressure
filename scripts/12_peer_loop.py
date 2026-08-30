@@ -77,13 +77,25 @@ def stamp(args, model_name: str) -> dict:
         "sample_per_cluster": bool(args.sample_per_cluster),
         "ablate": bool(args.ablate),
         "monitor": bool(args.monitor),
+        "only_cluster": args.only_cluster,
+        "force_board": args.force_board,
         "started": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
 
 def corpus(n_items: int | None, one_per_grader: bool = False,
-           sample_per_cluster: bool = False, seed: int = CFG.seed) -> list[dict]:
+           sample_per_cluster: bool = False, seed: int = CFG.seed,
+           only_cluster: str | None = None) -> list[dict]:
     items = agentharm(harmful=True)
+    if only_cluster is not None:
+        # Targeted re-run of one cluster (e.g. a token-budget casualty) at a different
+        # --max-new-tokens. Applied first and unconditionally: the other subsetting
+        # branches below are for whole-corpus smoke/pilot runs and are never combined
+        # with this flag, so this must not interact with them.
+        items = [it for it in items if it["cluster"] == only_cluster]
+        if not items:
+            raise SystemExit(f"--only-cluster {only_cluster!r} matched no items")
+        return sorted(items, key=lambda r: r["id"])
     if one_per_grader:  # coverage smoke: exercise all 52 graders once
         first: dict[str, dict] = {}
         for it in sorted(items, key=lambda r: (r["cluster"], r["id"])):
@@ -121,10 +133,21 @@ def corpus(n_items: int | None, one_per_grader: bool = False,
     return sorted(items, key=lambda r: (rank[r["cluster"]], r["id"]))
 
 
-def build(items, boards, tok, seed: int) -> list[dict]:
-    """Board is drawn per *cluster*, so it cannot track the variant index."""
+def build(items, boards, tok, seed: int, force_board=None) -> list[dict]:
+    """Board is drawn per *cluster*, so it cannot track the variant index.
+
+    `force_board` pins every cluster present to one given Board instead of drawing —
+    for a targeted single-cluster re-run, drawing from a fresh `random.Random(seed)`
+    would land on a different point in the RNG stream than the full 52-cluster run
+    did (this cluster's board draw happens after N-1 other draws in the full run),
+    silently mismatching the peer-framing identities already baked into any
+    surviving rows for that cluster.
+    """
     rng = random.Random(seed)
-    per_cluster = {c: rng.choice(boards) for c in sorted({i["cluster"] for i in items})}
+    if force_board is not None:
+        per_cluster = {c: force_board for c in sorted({i["cluster"] for i in items})}
+    else:
+        per_cluster = {c: rng.choice(boards) for c in sorted({i["cluster"] for i in items})}
     rows, seen = [], set()
     for it in items:
         key = (it["cluster"], it["id"])
@@ -170,6 +193,13 @@ def main() -> None:
                          "the intervention 03_arditi_selection scored candidates under")
     ap.add_argument("--monitor", action="store_true",
                     help="record r_harm and r_ref projections (one extra forward pass per turn)")
+    ap.add_argument("--only-cluster", default=None,
+                    help="re-run one cluster only, e.g. after a token-budget casualty. "
+                         "Pair with --force-board to match the board an earlier full run "
+                         "already used for that cluster, or rows won't merge cleanly.")
+    ap.add_argument("--force-board", default=None,
+                    help="pin the board id (e.g. board_03) instead of drawing one; "
+                         "required for --only-cluster to be mergeable with existing data")
     args = ap.parse_args()
 
     global CONDITIONS
@@ -195,15 +225,28 @@ def main() -> None:
     if args.out.exists():
         saved = json.loads(args.out.read_text())
         keys = ("model", "conditions", "seed", "n_items", "max_turns", "max_new_tokens",
-                "judge", "one_per_grader", "sample_per_cluster", "ablate", "monitor")
+                "judge", "one_per_grader", "sample_per_cluster", "ablate", "monitor",
+                "only_cluster", "force_board")
         if all(saved["meta"].get(k) == meta[k] for k in keys):
             rows = saved["rows"]
             print(f"resuming {sum('turns' in r for r in rows)}/{len(rows)} done")
         else:
             raise SystemExit(f"{args.out} was produced with different settings; pass --out elsewhere")
     if rows is None:
+        force_board = None
+        if args.force_board:
+            by_id = {b.id: b for b in boards}
+            if args.force_board not in by_id:
+                raise SystemExit(f"--force-board {args.force_board!r} not among "
+                                  f"{sorted(by_id)}")
+            force_board = by_id[args.force_board]
+        elif args.only_cluster:
+            print("WARNING: --only-cluster without --force-board draws a fresh board — "
+                  "the new rows will not match an earlier full run's framing for this "
+                  "cluster and cannot be merged into it.", flush=True)
         rows = build(corpus(args.n_items, args.one_per_grader, args.sample_per_cluster,
-                            args.seed), boards, tok, args.seed)
+                            args.seed, only_cluster=args.only_cluster),
+                     boards, tok, args.seed, force_board=force_board)
     print(f"{len(rows)} rows | {len(rows)//len(CONDITIONS)} items x {len(CONDITIONS)} conditions")
 
     # A row needs work if it has no transcript, or has one that failed to grade.
