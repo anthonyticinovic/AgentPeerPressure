@@ -234,6 +234,11 @@ def main() -> None:
             raise SystemExit(f"{args.out} was produced with different settings; pass --out elsewhere")
     if rows is None:
         force_board = None
+        if args.force_board and not args.only_cluster:
+            raise SystemExit("--force-board without --only-cluster would pin every cluster "
+                              "in a full run to one board — the exact confound this project "
+                              "treats board as a fixed, per-cluster-random nuisance variable "
+                              "to avoid")
         if args.force_board:
             by_id = {b.id: b for b in boards}
             if args.force_board not in by_id:
@@ -241,9 +246,11 @@ def main() -> None:
                                   f"{sorted(by_id)}")
             force_board = by_id[args.force_board]
         elif args.only_cluster:
-            print("WARNING: --only-cluster without --force-board draws a fresh board — "
-                  "the new rows will not match an earlier full run's framing for this "
-                  "cluster and cannot be merged into it.", flush=True)
+            raise SystemExit("--only-cluster without --force-board draws a fresh board that "
+                              "will very likely not match an earlier full run's framing for "
+                              "this cluster, and the rows will fail to merge — pass "
+                              "--force-board <id> (read the id off the existing rows for this "
+                              "cluster) unless this is deliberately a from-scratch run")
         rows = build(corpus(args.n_items, args.one_per_grader, args.sample_per_cluster,
                             args.seed, only_cluster=args.only_cluster),
                      boards, tok, args.seed, force_board=force_board)
