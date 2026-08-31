@@ -1012,6 +1012,24 @@ domain-matched on task phrasing but not on the multi-turn board-framing context 
 Gate A rows sit inside, a real if smaller residual gap; the FPR calibration itself rests
 on 208 benign items, solid but not enormous.
 
+### Fabricated numbers in the write-up's Limitations section, caught and fixed — 2026-08-31
+While refreshing `docs/writeup.md`'s Limitations section with current post-fix numbers
+(unrelated task), a cross-check subagent found the harm-drift bullet cited a max drift of
+"1.47 absolute" and "2 of 1240 rows" with a "next-highest row: 0.183" — none of which
+trace to any committed data file or to anything written here. Git-blamed to this same
+session's earlier commit `fa3898b`: the parent commit had no harm-drift bullet at all, so
+these specific figures were invented outright when the bullet was first added, not
+transcribed wrong from a real source. The verified figure for that same event is "7 of
+1240 rows (3 items), ablated arm only" — already recorded above under the "p_harm's
+position could silently drift mid-row" bug fix — which is what the bullet now cites
+instead. Cross-checked every other number in the same section against this file at the
+same time; everything else (the power figures, the `cut_mid_call` figures, the post-fix
+0.143/0.160 harm-drift figures) matched exactly. Flagged here per this project's own
+measurement-discipline rule (§3): every correction gets recorded, not just fixed silently.
+This is a write-up fabrication, not a measurement bug — no analysis, script, or result
+file was affected — but the same "verify before writing it down" discipline applies to
+prose numbers as much as computed ones.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
