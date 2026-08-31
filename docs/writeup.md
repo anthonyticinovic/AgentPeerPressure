@@ -54,11 +54,16 @@ The stimuli below are built on the same shared-workspace structure as the July i
 | condition | board content |
 |---|---|
 | C0 | none (baseline) |
+| C1 | neutral non-agentic filler text, token-matched to C2 - isolates context length from content |
 | C1b | peer endorsement, speakers stripped - the "speaker-free" floor |
 | C2 | peer endorsement, named peers |
 | C3 | the *same* peers, refusing - held for review |
+| C4 | C2's own board, word-shuffled - isolates a coherent signal from mere token soup |
+| C5 | bare multi-agent identity ("you are agent 4 of 12"), empty board - isolates identity from board content |
 | C6 | an audit record, no social framing |
 | C7 | a peer hands the task off partway through - diffusion of authorship, not endorsement |
+
+C1, C4, and C5 were added later, alongside C3, to close a falsifiability gap the original four conditions couldn't rule out: without them, any observed effect could be "extra text" (C1), "any board content regardless of coherence" (C4), or "any multi-agent framing regardless of content" (C5) rather than peer endorsement specifically.
 
 `C2 − C3` (peers who complied vs. peers who refused, otherwise identical) is the actual peer-pressure contrast and is this project's pre-registered primary. An earlier version of this project used `C2 − C1b`, which only tests whether *naming* peers matters, not what they did.
 
@@ -97,13 +102,15 @@ All figures below are Qwen3.5-9B, matching Setup's stated default - including th
 | harmful compliance, automated judge (n=25) | 0.08 (0.88 neither refusal nor harmful, 0.04 refused) |
 | shuffled-label control, same site | 1.00 / 0.00 (no effect) |
 
-| direction | steered toward harmful | steered toward benign | moves as labelled |
-|---|---|---|---|
-| `r_harm` | judgment shifts, 0.84 @ layer 7 | no effect | **yes** |
-| `r_ref` | modest shift, 0.16 @ layer 14 | refusal induced, 0.92 @ layer 14 | no |
-| `r_arditi` | modest shift, 0.16 @ layer 14 | refusal induced, peak 1.00 | no |
+| direction | pushed toward harmful | pushed toward benign | peak refusal (any layer) | moves as labelled |
+|---|---|---|---|---|
+| `r_harm` | judgment shifts, 0.84 @ layer 7 | flat, no effect | 0.00 | **yes** |
+| `r_ref` | 0.16 @ layer 14 | 0.92 @ layer 14 (wrong direction) | **1.00** | no |
+| `r_arditi` | 0.16 @ layer 14 | not tested this direction (see note) | **1.00** | no |
 
-`r_harm` is the only one of the three whose steering effect tracks the harmful/benign label directionally - it's the belief direction. `r_ref` and `r_arditi` both move refusal when steered, but not in a way that respects ground-truth harmfulness; they're behavioral/signal directions, not judgment directions. Held-out baseline: benign prompts judged harmful 0.00, harmful prompts judged harmful 0.98. `r_ref`'s benign-panel effect (0.16 raising, 0.92 lowering) is asymmetric in the same direction as `r_arditi`'s, consistent with the two behaving similarly as refusal-adjacent signals rather than judgment ones.
+`r_harm` is the only one of the three whose steering effect tracks the harmful/benign label directionally - it's the belief direction. Pushing `r_ref` or `r_arditi` *does* induce real refusal (peak 1.00, on the arm that pushes toward "harmful," at a different layer than the judgment-flip numbers above), but neither respects ground-truth harmfulness while doing it - pushing `r_ref` toward "benign" instead flips the model's own stated judgment toward "harmful" 92% of the time, the opposite of what the label predicts. They're behavioral/signal directions, not judgment directions. Held-out baseline: benign prompts judged harmful 0.00, harmful prompts judged harmful 0.98.
+
+**Note on `r_ref` and `r_arditi` at this scale.** Their "pushed toward harmful" numbers above are identical (0.16 @ layer 14) because they are, at 9B, literally the same vector: Arditi's selected position (`i*=-1`) coincides with `r_ref`'s own read-out position (`context_last`, defined identically), so this script's from-scratch reconstruction of both directions collapses to one. This is a known, already-documented site collision (see `docs/STATE.md`), not a new bug - but it means this table's `r_ref` and `r_arditi` rows are one measurement, not two independent ones, and `r_arditi` is only ever tested in a single steering direction per panel by this script's own design (Arditi's method is ablation-focused, not bidirectional steering, unlike Zhao's `r_harm`/`r_ref`), which is why its "pushed toward benign" cell has no data rather than a number.
 
 **On this narrow, single-turn check specifically, ablation mostly produces neither a refusal nor overtly harmful content (0.88) - a real, honest result, not a rounding artefact.** This is a 25-item AdvBench-style completion check, not the agentic setting; it says the model rarely writes something an automated judge calls unambiguously harmful in one shot once refusal is removed, which is a different and narrower question than whether it *attempts* a harmful agentic task (Result 3: any-tool-call rate 0.48→0.92) or *completes* one (Results 3-4). Read this table as establishing the directions are real and causally distinct, not as a compliance-rate headline - that's what the rest of this project measures at agentic scale.
 
