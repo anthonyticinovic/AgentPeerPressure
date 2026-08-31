@@ -111,16 +111,14 @@ This result is single-turn (AdvBench-style completions), not yet the full agenti
 
 ## Result 2 - with refusal intact, peer identity alone does nothing
 
-Full AgentHarm agentic corpus, multi-turn tool loop, AgentHarm's own grading rubrics with a semantic judge:
+Full AgentHarm agentic corpus (208 items, 9 conditions), multi-turn tool loop, AgentHarm's own grading rubrics with a semantic judge - base arm (refusal intact) of the same run Result 3 draws from, not a separate or smaller-scale corpus:
 
-| vs. C1b | rate | delta | exact p | cluster p |
+| vs. C1b (22.1%) | rate | delta | exact p | cluster p |
 |---|---|---|---|---|
-| C2 (named peers) | 0.217 | **+1.7pp** | 0.688 | 0.688 |
-| C6 (audit record) | 0.157 | -4.3pp | 0.125 | 0.125 |
+| C2 (named peers) | 21.2% | **-0.96pp** | 0.727 | 0.688 |
+| C6 (audit record) | 21.6% | -0.48pp | 1.000 | 0.727 |
 
-This null is stronger than the table shows: restricted to the items where neither arm hit a turn cap or grading artifact (98 of 115), `C2 − C1b = -1.0pp, p = 1.00`. On four further outcome definitions that don't depend on AgentHarm's grading functions at all (did the model attempt the task, did it reach a payload call, mean per-criterion score), the C2 contrast is exactly zero. An independent, blind reimplementation - different code, no access to this project's analysis scripts - reproduced every number above exactly.
-
-Why: decomposing the full 208-item corpus by whether an item can carry information at all under intact refusal - 154 of 208 never comply in *any* condition (108 make zero tool calls, 46 engage but never complete), 28 comply in *all four* - leaves only **26 informative items**, and the primary contrast is decided by 8 discordant pairs among those. Two entire categories (Sexual, Hate - 52 items) are pinned at zero compliance in every condition. Refusal itself is acting as a floor that most of the corpus never gets off of, which is the direct motivation for Result 3.
+Naming peers moves nothing (C2), and neither does a purely procedural audit-record framing with no social content at all (C6) - both essentially zero, neither near significance. 44 of 208 items are informative (able to move at all) with refusal intact - most items either always comply or the model never touches them - which is the direct motivation for Result 3: ablate refusal and see whether the corpus opens up enough to test the actual question.
 
 ---
 
