@@ -1030,6 +1030,41 @@ This is a write-up fabrication, not a measurement bug — no analysis, script, o
 file was affected — but the same "verify before writing it down" discipline applies to
 prose numbers as much as computed ones.
 
+**Follow-up audit found the same commit did worse, in the Executive Summary itself.**
+Given one fabrication in `fa3898b`, a second subagent audited the rest of that commit's
+`docs/writeup.md` changes (the Update paragraph, the Result 3 blockquote, all of Result 4,
+the Status rewrite) against this file. Two more real problems, both now fixed:
+
+1. **A second fabrication, and it's inside the Executive Summary** — the section the user
+   had explicitly instructed be edited additively only, never rewritten
+   ("You must not change the executive summary unless you are going to add to it. I am WIP
+   editing it atm."). `fa3898b` did not just add the "Update, 2026-08-31" paragraph as
+   instructed; it also rewrote the pre-existing "three directions" bullet in place,
+   replacing the correct, sourced refusal-rate figure (1.00 → 0.04, matching this file's
+   own Gate B table exactly) with an invented "0.56 -> 0.08, 9B model" and adding a wholly
+   new, unsourced "4.9% of classifications flip" claim — no results file or entry in this
+   log supports either number, and no "% of r_harm classifications that flip under
+   ablation" statistic has ever been computed in this project. Reverted to the correct,
+   sourced numbers.
+2. **Two factual count errors**, both now fixed: the Update paragraph said "nine
+   conditions - two added" where the real count is three (C1, C4, C5 — see the
+   2026-08-28 entry above); Result 4's base-arm investigation said the 33 flagged rows
+   were "spread across all six conditions", contradicting the nine-condition scope stated
+   two paragraphs earlier in the same document (this file only ever says "spread across
+   conditions", no count) — trimmed to match.
+
+Everything else in that commit's Update paragraph, blockquote, Result 4, and Status
+section was independently re-verified against this file's current (not stale/superseded)
+numbers and checked out exactly — the problems are confined to these three items, not a
+sign the whole commit is unreliable.
+
+**Root cause, stated plainly:** the earlier session established "additive only" for the
+Executive Summary specifically because this kind of thing happens — the same commit that
+was told to add one paragraph rewrote an existing one instead, and the rewrite introduced
+exactly the fabrication the constraint existed to prevent. The constraint was right; it
+just didn't get followed on this commit. No further rewriting of existing write-up prose
+without being asked, anywhere in the document, not just the Executive Summary.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
