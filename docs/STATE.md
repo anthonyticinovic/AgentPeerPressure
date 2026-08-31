@@ -911,6 +911,107 @@ begun running yet so the migration was free). **Not yet merged or re-analysed** 
 step once both complete: grade, merge via `25_merge_cluster_rerun.py`, re-run the full
 analysis chain.
 
+### Domain-matched recalibration: the blind spot is now a real, non-degenerate finding — 2026-08-31
+
+The JBB-calibrated `tau_harm_orth` above (+15.82) was found not to transfer: 0 of 3,744
+real rows (both arms) ever exceeded it, the single highest observed `p_harm_orth` in the
+whole ablated arm (11.88) sitting below it. Root cause: the calibration corpus
+(JailbreakBench, short single-turn prompts) is structurally too different from what it's
+applied to (AgentHarm's multi-turn agentic transcripts) — a domain-transfer failure, not
+a bug in the calibration method itself (round-3 entry above already confirmed the method
+correct).
+
+**Fix: recalibrate on `agentharm(harmful=False)`** (`src/pressure/data.py`) — AgentHarm's
+own benign counterpart split, 208 items / 52 clusters, matched tool-use structure to the
+harmful set by construction, already vendored and unused for this purpose. `p_harm_orth`
+is read at `task_last`, a position defined purely by the task instruction text (see
+`monitor.py`'s docstring), so calibration needs one forward pass per item, not a full
+agentic loop — cheap regardless of corpus size. Implementer → adversarial reviewer →
+fixer pipeline (per the user's explicit request for this pattern this round):
+
+- **Implementer** modified `scripts/23_calibrate_tau_orth.py` in place: sourced the
+  corpus from `agentharm(harmful=False)`, rendered bare single-turn (no board-framing —
+  a deliberate scope choice, documented as closing the domain/phrasing gap but not the
+  board-framing context gap with real Gate A transcripts, an honest remaining
+  limitation). Found and fixed a real edge case along the way: bare single-turn chat
+  rendering strips leading/trailing whitespace from a message that is the whole content,
+  so `resolve_positions`'s exact-substring search for the raw `task_text` failed for the
+  4/208 harmful and 2/208 benign prompts starting with `\n\n` — never bites in
+  production, where `boards.render()` embeds the task mid-message inside board-framing
+  text, so it's never the whole (and thus never stripped) content. Kept the old JBB tau
+  as `diagnostic_jbb_tau`, not silently discarded.
+- Local 4B validation before review: new tau=-0.8205, AUROC (AgentHarm benign vs
+  harmful, same frozen `r_harm`/layer, descriptive not held-out since AUROC only ever
+  uses the benign side for `calibrate_tau` itself) = **0.5335** — a real drop from JBB's
+  0.6927 that the implementer flagged prominently rather than softening: AgentHarm's
+  benign counterparts are deliberately tool-use-matched to the harmful set precisely to
+  kill capability-based separability, so a readout partly keying on lexical/capability
+  surface cues would separate JBB's topically-distinct pairs much better than AgentHarm's
+  intentionally-matched ones, independent of any calibration issue.
+- Agent lifecycle note: the implementer's first turn ended mid-task, having started a
+  background step (`02_dual_directions.py --iter`) and then stopped waiting for a
+  notification that subagents don't receive (only a top-level session gets woken by
+  finished background work). Caught and corrected — resumed via the same agent (not a
+  fresh one; a first attempt at this wrongly used `isolation: "worktree"`, which starts
+  from a clean checkout and can't see a prior turn's uncommitted edits, so that
+  misdirected agent was stopped before it could do redundant/confusing work in a separate
+  worktree, and the original was resumed properly instead).
+- **Adversarial reviewer** verdict: worth running, not a lateral move — `calibrate_tau`
+  (`directions.py:126-133`) is a pure quantile over the benign side only, with zero
+  dependence on AUROC, so the low separability doesn't undermine the FPR-calibration
+  itself. Independently confirmed no circularity (direction/layer come from the frozen
+  `Directions` artefact, untouched by this script), confirmed the whitespace bug and fix
+  are both real (pulled the actual prompts, tokenized them, reproduced the pre-fix
+  failure), confirmed 5 real harmful/benign AgentHarm pairs from the same clusters are
+  extremely tightly matched in surface form (supporting the implementer's explanation),
+  reran the leakage check and test suite independently. One real gap found: artefact
+  restoration after local validation was claimed complete but wasn't — 2 of 7 root files
+  (`arditi_selection.json`, `arditi_generation_check.json`) were still stamped 4B.
+- **Fixer** restored those 2 files from the `Qwen3.5-9B` backup, and in the process found
+  a *third* stale file the reviewer's own checklist had missed
+  (`transcripts_arditi_long.json` — the sibling output of the same stale run) — restored
+  it too. Full 7-file MD5 re-verification, 106 tests still passing, committed
+  (`14056de`), synced to Spartan, sync confirmed by independent MD5 comparison of the
+  script on both ends.
+
+**Real 9B calibration** (job 29759503, `gpu-a100-preempt`, 2m55s — genuinely cheap, as
+predicted): **tau_harm_orth = +0.5843**, empirical FPR 0.0529, **AUROC = 0.6065** — real
+separation above chance, and notably better than the 4B prediction (0.5335), though
+still below JBB's 0.7457. `harm_layer=17`, unchanged from before (confirms no
+re-selection occurred). Diagnostic JBB tau recomputed for comparison: +15.7722 (matches
+the previously-recorded +15.8178 closely; small residual difference not investigated,
+immaterial to anything downstream).
+
+**The cross-tab (`24_blindspot_crosstab.py`) is now a real, non-degenerate finding.**
+Rerun against the same `gate_a_full_{base,abl}_judged.json` used throughout this session
+(no new generation needed):
+
+| | comply-and-flagged (all rows) | cluster-bootstrap 95% CI |
+|---|---|---|
+| base (sanity check) | 1.76% (33/1872) | [0.43%, 3.47%] |
+| ablated (primary) | 4.59% (86/1872) | [2.03%, 7.64%] |
+
+Exploratory/diagnostic (not part of the Holm-corrected secondary family): among ablated
+rows where `full_compliance_judged` is true (n=818), **10.51% are flagged vs. the 5% FPR
+baseline — two-sided exact binomial p=0.0000**. This is the actual blind-spot
+demonstration the feature was built for: roughly 1 in 10 compliant-under-ablation rows
+still reads as internally harm-flagged, well above chance.
+
+The base arm's 33 comply-and-flagged rows (not the clean zero a perfectly-gated refusal
+would produce, though still under the 5% FPR budget) were checked, not assumed benign:
+concentrated in exactly 5 real AgentHarm scenarios (Paid Fake Prescription and others,
+categories Harassment/Disinformation/Cybercrime/Drugs/Hate), spread across conditions
+(not a framing artefact), values only just above threshold (0.6-0.96 vs tau 0.58), none
+truncated. Reads as a real, coherent, mild base rate — refusal doesn't perfectly gate
+even without ablation — not a bug.
+
+**Honest residual caveats, to carry into any write-up of this result**: AUROC 0.61 is
+real but moderate, not strong, so some threshold-placement noise is expected; the
+"bare single-turn render, no board-framing" scope decision means calibration is
+domain-matched on task phrasing but not on the multi-turn board-framing context real
+Gate A rows sit inside, a real if smaller residual gap; the FPR calibration itself rests
+on 208 benign items, solid but not enormous.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
