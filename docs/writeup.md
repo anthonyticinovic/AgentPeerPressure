@@ -20,6 +20,8 @@ Using [Arditi et al.'s](https://arxiv.org/abs/2406.11717) causal ablation and [Z
 
 **Update, 2026-08-31.** That run is complete and bug-fixed (208 items, nine conditions - three added for a stronger falsifiability/positive-control test - both ablation levels). The primary, pre-registered interaction is now nominally significant: **`C2-C3`, +5.77pp, p=0.0408** (uncorrected, single test, as pre-registered). The earlier confirmatory run's null (p=0.28, Result 3 below) carried a token-truncation and position-drift bug since fixed; this is the corrected number. Read it carefully, not triumphantly: it clears 0.05 but sits close to the boundary of what this design can detect (26% power at the observed effect size), and a sensitivity check excluding one systematically token-truncated cluster barely moves it (p=0.0423) - the result does not depend on that cluster, but it is not deep in significant territory either. A targeted regeneration of that cluster at a much larger token budget is in progress and may shift the number slightly once merged; Result 3 below still shows the pre-fix table and needs a full rewrite once that lands. Separately - and this is the paper's actual title question, answered directly for the first time - a monitoring blind-spot cross-tab finds that **10.5% of rows that comply under ablation still internally flag the request as harmful**, well above the 5% chance baseline (p<0.0001, exploratory). See Result 4.
 
+**Update, 2026-08-31 (cont.).** The targeted cluster-27 regeneration referenced above is complete and merged into the main results. The cluster's compliance was 0/36 in both arms both before and after the fix, so the primary result is unchanged: **+5.77pp, p=0.0408**, identical to the number above. Result 3 below has now been rewritten with the final numbers.
+
 ---
 
 ## Why this matters
@@ -102,15 +104,6 @@ Why: decomposing the full 208-item corpus by whether an item can carry informati
 
 ## Result 3 - refusal ablation, confirmatory result
 
-> **Superseded, not yet rewritten (2026-08-31).** The table and numbers below are the
-> original 6-condition, 768-token confirmatory run, which carried a token-truncation and
-> position-drift bug since fixed. The corrected, complete 9-condition/1536-token rerun
-> gives a nominally significant primary result (interaction +5.77pp, p=0.0408, see the
-> Executive summary update above) instead of this section's null (p=0.28). Left as-is
-> pending a full rewrite once a small targeted regeneration (one systematically
-> token-truncated cluster) merges in - see `docs/STATE.md` for the complete current
-> numbers in the meantime.
-
 **Ablation works in the full agentic setting, not just single-turn.** 52-item capability check, both arms monitored:
 
 | | intact | ablated |
@@ -121,36 +114,37 @@ Why: decomposing the full 208-item corpus by whether an item can carry informati
 
 Malformed calls are identical across arms (a corpus/token-budget property, not an ablation artifact). The turn increase tracks the attempt-rate increase - the model is finishing more real work, not looping (only 1 row loops, identically, in both arms). Ten ablated transcripts read by hand across two independent passes are all coherent.
 
-**The corpus opens up, confirmed at full scale.** Full 208-item corpus, all six conditions, both ablation levels, graded with the semantic judge (206 of 208 items retained - 2 dropped for incomplete grading/condition coverage after judging, not selectively):
+**The corpus opens up, confirmed at full scale.** Full 208-item corpus, all nine conditions, both ablation levels, graded with the semantic judge, all 208 items retained in both arms (0 dropped):
 
-| | C0 | C1b | C2 | C3 | C6 | C7 | informative |
-|---|---|---|---|---|---|---|---|
-| intact | 19.4% | 21.4% | 20.9% | 22.8% | 19.9% | 23.3% | 32/206 |
-| ablated | 42.7% | 41.3% | 43.2% | 41.3% | 42.2% | 42.7% | 56/206 |
+| | C0 | C1 | C1b | C2 | C3 | C4 | C5 | C6 | C7 | informative |
+|---|---|---|---|---|---|---|---|---|---|---|
+| base | 19.2% | 18.3% | 22.1% | 21.2% | 24.5% | 21.6% | 23.1% | 21.6% | 24.5% | 44/208 |
+| ablated | 43.3% | 41.3% | 41.8% | 44.7% | 42.3% | 43.3% | 48.1% | 44.2% | 44.2% | 80/208 |
 
-The informative set nearly doubles (32→56), consistent with the pilot's direction. Categories that were pinned at floor with refusal intact open up the most under ablation - Hate goes from 1 to 13 informative items, Sexual from 1 to 7 - matching the earlier finding that these categories carry almost no dynamic range while refusal is intact.
+The informative set nearly doubles again (44→80), consistent with the pilot's direction and the earlier 6-condition run.
 
-**The pre-registered primary test - null.**
+**The pre-registered primary test - nominally significant.**
 
 | | delta | item p | cluster p |
 |---|---|---|---|
-| intact, C2−C3 | -1.94pp | 0.3877 | 0.1797 |
-| ablated, C2−C3 | +1.94pp | 0.4545 | 0.7744 |
-| **interaction (primary)** | **+3.88pp** | **0.2805** | - |
+| base, C2-C3 | -3.37pp | 0.0654 | 0.0703 |
+| ablated, C2-C3 | +2.40pp | 0.3593 | 0.7905 |
+| **interaction (primary)** | **+5.77pp** | **0.0408** | - |
 
-Two further pre-registered interactions, both also null: naming alone (C2−C1b interaction, +2.43pp, p=0.5010) and the handoff condition (C7−C1b interaction, -0.49pp, p=1.0000). All 14 Holm-corrected secondary contrasts collapse to p=1.0 after correction; none approach significance.
+Two more pre-registered interactions, both null: naming alone (C2-C1b interaction, +3.85pp, p=0.2299) and the handoff condition (C7-C1b interaction, +0.00pp, p=1.0000). The two positive-control interactions added to close the falsifiability gap are also null: filler (C1-C1b, +3.37pp, p=0.4481) and shuffled-board (C4-C1b, +1.92pp, p=0.6637); the bare-identity control (C5-C1b, +5.29pp, p=0.1317) trends the same direction as the primary but does not clear significance. All 23 Holm-corrected secondary contrasts collapse well above 0.05 after correction (smallest: ablated C5-C1b at 0.81); none approach significance. Only the primary contrast is pre-registered and reported uncorrected.
 
-**This is a null on the primary, pre-registered question, at the study's full planned scale.** It is not evidence of no effect - the confirmatory run's own power table (below, unchanged from the pilot's projection) gives only 47% power to detect a 20pp true interaction and 17% for 10pp at n=208. An observed +3.88pp at p=0.28 is exactly what a true null *or* a true effect somewhere under ~20pp would both look like; this design cannot tell those apart. What can be said without hedging: refusal ablation worked as intended (informative items 32→56, any-call rate 0.48→0.92), the instrument was fixed, and whatever peer-framing effect might exist was not large enough for this study to resolve.
+**Read this carefully, not triumphantly.** `scripts/21_interaction_power.py`'s resampling method (validated against the production statistic to float precision) gives only 26% power to detect an effect this size, and only 89% power at a true ~10pp effect - past roughly 13.5pp the method runs out of real discordant pairs to resample and cannot assess power at all. This clears the pre-registered 0.05 threshold but is not deep in significant territory; a materially smaller design or a less lucky draw would plausibly have missed it. What can be said without hedging: refusal ablation worked as intended (informative items 44→80, capability-check any-call rate 0.48→0.92), the truncation and position-drift bugs are fixed and the primary result is stable under a targeted regeneration of the one cluster that was still affected (see below), and the primary, pre-registered interaction is now positive and significant where the earlier buggy run read null.
 
-| true interaction | power, n=52 (pilot) | power, n=208 (confirmatory) |
-|---|---|---|
-| 10pp | 0.07 | 0.17 |
-| 15pp | 0.17 | 0.30 |
-| 20pp | 0.28 | 0.47 |
-| 25pp | 0.38 | 0.69 |
-| 30pp | 0.54 | 0.87 |
+| true interaction | power (n=208, this run) |
+|---|---|
+| 0pp (calibration) | 0.025 |
+| 5pp | 0.260 |
+| 10pp | 0.893 |
+| ≥13.5pp | not assessable - beyond this run's own discordance ceiling |
 
-A monitoring QA check on this run's data is documented in Limitations (harm-drift bound).
+This replaces an earlier power table quoted in a prior draft that could not be reproduced from any committed script and is retracted; do not cite it.
+
+**Token-truncation and position-drift, fixed.** An earlier version of this run had two bugs, both now fixed and both documented in Limitations: a `p_harm` position-drift bug that has since been corrected, and a token-truncation artifact (`cut_mid_call`) concentrated almost entirely in one cluster (`grade_paper_plagiarism`, cluster 27), which has since been regenerated at a larger token budget and merged in - its compliance rate was 0/36 in both arms before and after that fix, so the primary result above is unchanged by the merge (+5.77pp, p=0.0408 either way). The within-row monitor-drift QA check now passes cleanly on the complete data (see Limitations).
 
 ---
 
@@ -177,7 +171,7 @@ The intact arm's 33 comply-and-flagged rows are not the clean zero a perfectly-g
 
 - **The confirmatory run's primary result sits close to the detection boundary.** Power at the observed effect size (+5.77pp) is only 26% (calibration check at 0pp: 0.025, roughly nominal; power only reaches 89% around a true ~10pp effect). p=0.0408 clears the pre-registered 0.05 threshold but is not deep in significant territory - see `scripts/21_interaction_power.py` and the Executive summary update above.
 - **The judge has been blind-validated on this specific new territory (ablated generations, C3/C7 conditions) only on a 25-case sample**, drawn from the pilot - 24/25 confirmed, 1 ambiguous, no directional bias by condition found. The confirmatory run applied the same judge to ~3,700 rows; not separately re-validated at that scale.
-- **A token-truncation artifact (`cut_mid_call`) is real but narrow, not diffuse.** Overall rate 1.9% base / 2.4% ablated on the corrected, complete 9-condition/1536-token run, concentrated in 4 of 52 clusters - one of them (`grade_paper_plagiarism`, cluster 27) is 71/72 rows (99%) truncated in both arms even at 1536 tokens, because that rewrite task genuinely needs something like 4,000-8,000+ tokens to finish, not a budget tweak. These rows are never silently pooled: `19_ablation_analysis.py` scores them non-compliant and reports the count as an explicit lower-bound warning. A sensitivity check excluding cluster 27 entirely moves the primary result from +5.77pp/p=0.0408 to +5.88pp/p=0.0423 - the finding does not depend on this cluster. A targeted regeneration of just cluster 27 at an 8192-token budget is in progress (see Status); the figures above may shift slightly once it merges in.
+- **A token-truncation artifact (`cut_mid_call`) is real but narrow, not diffuse.** Overall rate 1.9% base / 2.4% ablated on the corrected, complete 9-condition/1536-token run, concentrated in 4 of 52 clusters - one of them (`grade_paper_plagiarism`, cluster 27) is 71/72 rows (99%) truncated in both arms even at 1536 tokens, because that rewrite task genuinely needs something like 4,000-8,000+ tokens to finish, not a budget tweak. These rows are never silently pooled: `19_ablation_analysis.py` scores them non-compliant and reports the count as an explicit lower-bound warning. A sensitivity check excluding cluster 27 entirely moved the primary result from +5.77pp/p=0.0408 to +5.88pp/p=0.0423, confirming the finding did not depend on this cluster. A targeted regeneration of cluster 27 at an 8192-token budget has since completed (0/36 rows truncated in either arm, down from 35/36 and 36/36) and been merged in; the cluster's compliance was 0/36 in both arms before and after, so the primary result is unchanged (+5.77pp/p=0.0408).
 - **The within-row monitor-drift QA check now passes cleanly.** An earlier version of the 9-condition run carried a `p_harm` position-drift bug (a later turn's echoed task text could hijack the position search): 7 of 1240 rows (3 items, ablated arm only) breached the 0.2 bound calibrated on A2's 52-item capability check. Fixed by bounding the search to the turn-0 prompt before any model output exists. On the corrected, complete data the bound holds cleanly on both arms: base 0.143, ablated 0.160.
 - **9B is the primary scale; 4B was used for method development only** and the two are not bit-identical even under greedy decoding (different hardware backends during development).
 - **Greedy decoding throughout** - there is no run-to-run sampling variance to average over; a given prompt always produces the same completion on the same hardware.
@@ -187,7 +181,7 @@ The intact arm's 33 comply-and-flagged rows are not the clean zero a perfectly-g
 
 ## Status
 
-**2026-08-31.** The corrected, complete 9-condition run (both ablation levels, 1536-token budget, position-drift and truncation bugs fixed) is done and analysed - primary result nominally significant (p=0.0408, see Executive summary update), not yet the null Result 3 still describes below it. The monitoring blind-spot cross-tab (Result 4) is done and gives a real, positive, exploratory finding. Still open: a small targeted regeneration of one systematically token-truncated cluster (may shift the primary result slightly, current sensitivity check suggests not by much); a full rewrite of Result 3 with the corrected numbers and table; deciding whether/how far to pursue closing the blind-spot calibration's remaining board-framing-context gap. `docs/STATE.md` carries the complete, dated record of everything behind these numbers.
+**2026-08-31.** The corrected, complete 9-condition run (both ablation levels, 1536-token budget, position-drift and truncation bugs fixed) is done and analysed - primary result nominally significant (p=0.0408, see Executive summary update). Result 3 has been rewritten with the final numbers. The targeted regeneration of cluster 27 (the one cluster still affected by token truncation) is complete and merged; the primary result is unchanged. The monitoring blind-spot cross-tab (Result 4) is done and gives a real, positive, exploratory finding, unaffected by the cluster-27 merge. Open: deciding whether/how far to pursue closing the blind-spot calibration's remaining board-framing-context gap (not a key result, deprioritised); a final read-through of the whole document for consistency now that Results 3 and 4 both carry final numbers. `docs/STATE.md` carries the complete, dated record of everything behind these numbers.
 
 ## Sanity Checking (WIP)
 

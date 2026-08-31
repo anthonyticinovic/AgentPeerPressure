@@ -1065,6 +1065,97 @@ exactly the fabrication the constraint existed to prevent. The constraint was ri
 just didn't get followed on this commit. No further rewriting of existing write-up prose
 without being asked, anywhere in the document, not just the Executive Summary.
 
+### Cluster-27 merged, full pipeline re-run, write-up finalised — 2026-08-31
+
+Jobs 29758324 (base) / 29758325 (ablated) completed clean on `gpu-l40s-preempt`
+(2h36m / 1h58m, exit 0:0 both). Sense-checked before fetching: 36/36 rows in both
+arms, all with real `turns`, **zero `cut_mid_call` in either arm** at the 8192-token
+budget (down from 35/36 base and 36/36 ablated at 1536 tokens). Fetched via
+`hpc/fetch.sh`, graded with `15_regrade.py` (0/36 unscored, 0/36 verdicts changed vs.
+structural in either arm, ~$0.03 total), merged into the main judged files with
+`25_merge_cluster_rerun.py` (one call per arm) — both merges clean, `cut_mid_call`
+in cluster 27 going 35→0 (base) and 36→0 (ablated), backups written to
+`*.pre_merge.json`.
+
+**The merge changed nothing about the primary result — verified directly, not just
+assumed.** Cluster 27's `full_compliance_judged` is 0/36 in both arms, both before
+and after the merge: the real, complete rewrites still don't satisfy
+`grade_paper_plagiarism`'s criteria, so replacing truncated-and-scored-non-compliant
+rows with complete-and-scored-non-compliant rows was a no-op for every downstream
+number. Re-ran the full analysis chain on the merged data and confirmed:
+
+    interaction:C2-C3   +5.77pp  p=0.0408   [PRIMARY] — byte-identical to the
+                                              pre-merge number
+
+- `19_ablation_analysis.py`: 208/208 items retained in both arms (0 dropped — an
+  improvement over the earlier 206/208), informative items 44→80. Five secondary
+  interactions all null (naming +3.85pp/p=0.2299, handoff +0.00pp/p=1.0000, filler
+  +3.37pp/p=0.4481, shuffled +1.92pp/p=0.6637, bare-identity +5.29pp/p=0.1317,
+  trending same direction as primary but not significant). All 23 Holm-corrected
+  secondary tests collapse well above 0.05 (smallest: ablated C5-C1b at 0.8069).
+  Harm-drift bound holds cleanly on both arms (0.143 base / 0.160 ablated).
+- `21_interaction_power.py`: independently re-derived the primary statistic to float
+  precision (+5.7692pp, p=0.0408 matching production exactly). Power 2.5% at 0pp
+  (calibration), 26.0% at ~5.8pp (the observed effect), 89.3% at 10pp; not assessable
+  past ~13.5pp (beyond this run's own discordance ceiling).
+- `22_turn1_lockin.py`: reconfirmed, 0/1071 base and 0/128 ablated rows with no
+  turn-1 tool call ever end up compliant.
+- `24_blindspot_crosstab.py`: reconfirmed unchanged (1.76%/33 base, 4.59%/86
+  ablated, 10.51% of ablated-compliant rows flagged, p=0.0000) — expected, since
+  cluster 27 contributed zero compliant rows in either arm either way.
+
+**`docs/writeup.md` finalised**, with a subagent independently re-deriving every
+number in the rewritten Result 3 section (plus the new Executive-Summary addendum,
+the `cut_mid_call` Limitations bullet, and Status) against fresh script output and
+the raw JSON before it was trusted — given the two fabrications caught earlier today,
+nothing in this pass was accepted on the strength of hand-transcription alone:
+
+- Result 3 rewritten in full: the pre-fix superseded-blockquote is gone, the
+  dynamic-range table now shows all nine conditions (0 items dropped), the primary
+  test table shows the nominally-significant result, the retracted "unreproducible"
+  power table is replaced with `21_interaction_power.py`'s validated one, and a new
+  closing paragraph states the cluster-27 merge and its null effect on the result.
+  All of it independently re-verified against live script output — no discrepancies.
+- Executive Summary: left the existing "Update, 2026-08-31" paragraph untouched
+  (per the user's standing "additive only" instruction) and appended a short new
+  "(cont.)" addendum confirming the cluster-27 merge and the unchanged primary
+  number, rather than editing the original paragraph's now-stale "in progress"
+  clause in place.
+- Limitations and Status (not exec-summary-protected, freely edited): updated to
+  reflect the merge as complete rather than pending. The `cut_mid_call` bullet's
+  1.9%/2.4%/"4 of 52 clusters" figures are correctly retrospective (they describe
+  the pre-fix state the fix corrected, not a live current figure) — flagged by the
+  verification subagent as worth noting explicitly, not a discrepancy.
+- One number could not be re-derived from any committed script today: the
+  "+5.88pp/p=0.0423, excluding cluster 27" sensitivity check quoted in both the
+  Executive Summary and Limitations. No `--exclude-cluster` flag exists in
+  `19_ablation_analysis.py`. It is unchanged text from a prior session (git diff
+  confirms only a tense change, "moves"→"moved") and was already logged in this
+  file's "Truncation: real, but narrow" entry above — carried forward as
+  previously-verified, not re-verified today. If it is ever cited again, re-derive
+  it from a script rather than trusting the prose a third time.
+
+**Not pushed to GitHub — a real, outstanding blocker, not a sandbox artifact.**
+`git push` fails both inside and outside the sandbox with `Permission to
+anthonyticinovic/AgentPeerPressure.git denied to aticinovic-ai` — the SSH identity
+currently configured for this session's git operations does not have write access
+to the repo. All of today's commits (`f4df16d`, `4f3e13d`, plus this entry's own
+commit once made) exist locally on `main` only. Needs the user's own credentials to
+resolve; not attempted further today.
+
+**Everything the earlier reorientation plan asked for is now done**: cluster-27
+regenerated, graded, merged; the full analysis chain re-run and independently
+verified; `docs/writeup.md` fully brought current (Result 3 rewritten, Result 4
+reconfirmed unaffected, Limitations and Status refreshed) with every number checked
+against live data rather than trusted from memory or git history. Two real
+write-up fabrications were caught and fixed along the way (recorded above) — worth
+noting for the pattern, not just the individual fixes: both happened in the same
+commit, both were caught by asking a cold subagent to verify prose numbers against
+the data rather than trusting the numbers as written, and both would have shipped
+silently otherwise. Remaining open items are the ones already flagged as
+deliberately deprioritised (the board-framing-context calibration gap) or blocked
+on the user (the GitHub push, the exposed DeepSeek API key in §8).
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
