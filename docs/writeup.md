@@ -88,22 +88,26 @@ Every board is a minimal pair like this - same speakers, same event count, valen
 
 ## Result 1 - three directions, not one
 
+All figures below are Qwen3.5-9B, matching Setup's stated default - including the causal-steering table, run for the first time at this scale today (`scripts/06_inversion_sweep.py`, n=50 held-out prompts per class, real ablation hook).
+
 | | value |
 |---|---|
-| Arditi direction selected | i\*=-7, l\*=12 (kl 0.067) |
+| Arditi direction selected | i\*=-1, l\*=24 (kl 0.083) |
 | refusal rate, ablated | 1.00 -> **0.04** |
-| harmful compliance, hand-labelled (n=25) | **0.84** |
+| harmful compliance, automated judge (n=25) | 0.08 (0.88 neither refusal nor harmful, 0.04 refused) |
 | shuffled-label control, same site | 1.00 / 0.00 (no effect) |
 
 | direction | steered toward harmful | steered toward benign | moves as labelled |
 |---|---|---|---|
-| `r_harm` | judgment shifts, 0.84 @ layer 6 | no effect | **yes** |
-| `r_ref` | no effect | refusal induced, 1.00 @ layer 11 | no |
-| `r_arditi` | no effect | - | no |
+| `r_harm` | judgment shifts, 0.84 @ layer 7 | no effect | **yes** |
+| `r_ref` | modest shift, 0.16 @ layer 14 | refusal induced, 0.92 @ layer 14 | no |
+| `r_arditi` | modest shift, 0.16 @ layer 14 | refusal induced, peak 1.00 | no |
 
-`r_harm` is the only one of the three whose steering effect tracks the harmful/benign label directionally - it's the belief direction. `r_ref` and `r_arditi` both move refusal when steered, but not in a way that respects ground-truth harmfulness; they're behavioral/signal directions, not judgment directions. Held-out baseline: benign prompts judged harmful 0.00, harmful prompts judged harmful 0.98.
+`r_harm` is the only one of the three whose steering effect tracks the harmful/benign label directionally - it's the belief direction. `r_ref` and `r_arditi` both move refusal when steered, but not in a way that respects ground-truth harmfulness; they're behavioral/signal directions, not judgment directions. Held-out baseline: benign prompts judged harmful 0.00, harmful prompts judged harmful 0.98. `r_ref`'s benign-panel effect (0.16 raising, 0.92 lowering) is asymmetric in the same direction as `r_arditi`'s, consistent with the two behaving similarly as refusal-adjacent signals rather than judgment ones.
 
-**These are genuinely different directions, not one direction under two names.** `cos(r_harm, r_arditi) = +0.132` (9B, at `r_harm`'s own read-out site - layer 17, `task_last`), far below the ~0.9 collapse threshold at which the two-signal design would stop being meaningful. This is the same sanity check Zhao et al.'s own method calls for; a value this low is why ablating `r_arditi` (Result 1's refusal collapse, 1.00→0.04) and monitoring `r_harm` (Result 4's blind spot) can be treated as measuring two different things rather than the same intervention read out twice.
+**On this narrow, single-turn check specifically, ablation mostly produces neither a refusal nor overtly harmful content (0.88) - a real, honest result, not a rounding artefact.** This is a 25-item AdvBench-style completion check, not the agentic setting; it says the model rarely writes something an automated judge calls unambiguously harmful in one shot once refusal is removed, which is a different and narrower question than whether it *attempts* a harmful agentic task (Result 3: any-tool-call rate 0.48→0.92) or *completes* one (Results 3-4). Read this table as establishing the directions are real and causally distinct, not as a compliance-rate headline - that's what the rest of this project measures at agentic scale.
+
+**These are genuinely different directions, not one direction under two names.** `cos(r_harm, r_arditi) = +0.132` (at `r_harm`'s own read-out site - layer 17, `task_last`), far below the ~0.9 collapse threshold at which the two-signal design would stop being meaningful. This is the same sanity check Zhao et al.'s own method calls for; a value this low is why ablating `r_arditi` (Result 1's refusal collapse, 1.00→0.04) and monitoring `r_harm` (Result 4's blind spot) can be treated as measuring two different things rather than the same intervention read out twice.
 
 This result is single-turn (AdvBench-style completions), not yet the full agentic setting - that's what the rest of this project tests.
 
