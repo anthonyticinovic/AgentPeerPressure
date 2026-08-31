@@ -1156,6 +1156,110 @@ silently otherwise. Remaining open items are the ones already flagged as
 deliberately deprioritised (the board-framing-context calibration gap) or blocked
 on the user (the GitHub push, the exposed DeepSeek API key in §8).
 
+### Result 1 was 4B, unlabelled — closed with a real 9B causal-steering run — 2026-08-31
+
+Two more adversarial reviewers (checking Result 1's table and the new Result 2 fix
+against the user's request to "finish the write-up") found the same thing
+independently: `docs/writeup.md`'s Result 1 table (Arditi selection i\*=-7/l\*=12/kl=0.067,
+the r_harm/r_ref/r_arditi causal-steering table) was the original 4B Phase-1/Gate B2
+data, unlabelled, in a document whose Setup section states 9B is used for all headline
+numbers — and it self-contradicted its own next paragraph, which correctly cited
+`r_harm`'s real 9B read-out layer (17) two lines below a table claiming layer 6.
+`scripts/06_inversion_sweep.py` (Gate B2's causal-steering validation) had simply never
+been run at 9B.
+
+**Fixed by actually running it**, not just relabelling. `hpc/gate_b2.sbatch` (new)
+mirrors `gate_a1.sbatch`'s pattern with an env-var-controlled item count. Checked all
+partitions first (`sbatch --test-only` sweep): `gpu-l40s-preempt` fastest (same-hour
+start) vs. `gpu-h100`/`gpu-a100` (4-7 days). Per the user's explicit instruction, an
+adversarial reviewer checked the script for staleness/drift before submitting anything —
+found the leakage guard and the calibrate/sweep disjointness fix both still intact, no
+signature drift against current `model.py`/`hooks.py`/`config.py`, but flagged (correctly,
+as risk rather than a hard bug) that the script has no checkpointing at all — a
+preemption loses all progress, unlike `12_peer_loop.py`'s per-10-row resume.
+
+**The smoke test (`GATE_B2_N=5`) found two real bugs the static review didn't catch**,
+both only visible by actually running the job:
+1. `vendor/zhao` was an orphaned git submodule reference (mode `160000`, no
+   `.gitmodules` entry — a nested `.git` left over from cloning Zhao et al.'s repo
+   directly into that path). `git ls-files` never descended into it, so `hpc/sync.sh`
+   has never shipped any of its contents to Spartan; nothing before today exercised this
+   path. **Fixed properly, not patched around**: removed the nested `.git`, re-added
+   `vendor/zhao` as regular tracked files (51 files; Zhao's own `.pt` checkpoint
+   artefacts, unused by this project's code, stay correctly gitignored), matching how
+   `vendor/agentharm` is already vendored — full tree, not selectively pruned, per this
+   project's "vendor it verbatim" principle ([[use-released-code-not-the-abstract]]).
+2. `results/inversion_preflight.json` (the template-selection preflight,
+   `scripts/05_inversion_preflight.py`) had also never been generated at 9B. Added as a
+   step in `hpc/gate_b2.sbatch`.
+
+Both fixed, synced, verified present on Spartan by direct file read (not trusted from
+`sync.sh`'s own message). Smoke test then ran clean end to end (6m07s), giving a real
+timing anchor: ~26 min extrapolated for the full `n=50` run, far below the original
+1.5-3h estimate (that estimate had no historical run to anchor against; this one does).
+Full run submitted to `gpu-l40s-preempt` (acceptable now that the job is short, unlike
+the original 1.5-3h estimate this partition choice would have been wrong for) — **job
+29768451, completed in 13m44s, exit 0.**
+
+**The real 9B result replicates the 4B story closely.** `r_harm` is still the only
+direction whose steering effect tracks ground-truth harmfulness: 0.84 flip rate @ layer
+7 (benign prompts pushed toward harmful), vs. the old 4B table's 0.84 @ layer 6 —
+same effect size, adjacent layer, different model. Real 9B Arditi selection: i\*=-1,
+l\*=24, kl=0.083 (vs. the stale i\*=-7/l\*=12/kl=0.067 shown before). Real automated
+harmful-compliance check (n=25, not hand-labelled — no 9B hand-label exists): 0.08
+harmful, **0.88 neither-refusal-nor-harmful**, 0.04 refused — a real, honest, narrower
+finding than the old 4B number implied, reported as such rather than smoothed into a
+false equivalence; it describes a 25-item single-turn completion check, not the agentic
+attempt/completion rates Results 3-4 report (0.48→0.92 any-call, the real primary
+evidence).
+
+**A second, real error in my own first pass at this fix, caught by the same two
+reviewers.** I mis-transcribed the causal-steering table: wrote "refusal induced, 0.92 @
+layer 14" for `r_ref`'s "pushed toward benign" cell, merging that cell's real judgment-
+flip value (0.92, with **zero** actual refusal — `refused: 0.0` at that exact cell in
+`inversion_analysis.json`) with a *different* column (`peak_refusal: 1.0`, which comes
+from the *other* arm, pushed toward harmful, at layer 21). Same error for `r_arditi`,
+compounded: it has no "pushed toward benign" arm on the harmless panel at all (the
+script only tests `r_arditi` in one steering direction per panel, by design — Arditi's
+method is ablation-focused, not Zhao-style bidirectional steering — confirmed in
+`06_inversion_sweep.py`'s own `arms_harmless`/`arms_harmful` lists), so "refusal induced,
+peak 1.00" was attached to a cell with no real per-cell data behind it. **Fixed**:
+rewrote the table to match the analysis script's own real 4-column headline structure
+(pushed-toward-harmful / pushed-toward-benign / peak-refusal-any-layer / consistent)
+instead of forcing the numbers into a 3-column format that caused the merge.
+
+**Also disclosed, not previously stated anywhere in the write-up**: `r_ref` and
+`r_arditi`'s "pushed toward harmful" numbers are identical (0.163 @ layer 14, confirmed
+in `inversion_analysis.json`'s `headline` dict) because, at 9B specifically, Arditi's
+selected position (`i*=-1`) coincides with `r_ref`'s own `context_last` read-out
+position — the two vectors are literally identical in this script's from-scratch
+reconstruction. This is the same site-collision already documented elsewhere in this
+file as "expected, non-fatal" for the main monitoring pipeline's read-outs — but it was
+new at 4B (where `i*=-7` did not coincide with `context_last`), so this exact
+consequence for the causal-steering table was never visible before today. The write-up
+now states this plainly rather than presenting the two rows as independent confirmation
+of the same conclusion.
+
+**Setup's condition table never listed C1, C4, or C5**, despite Result 3, the
+interaction tests, and Limitations using all three throughout - added, with a one-line
+note on why they exist (closing the falsifiability gap: ruling out "any extra text",
+"any board content", and "any multi-agent framing" respectively, as alternative
+explanations for a peer-endorsement effect).
+
+**Two items found but not fixed, both inside the Executive Summary** (the user's
+standing "additive only" instruction), flagged here rather than touched:
+- The Executive Summary's "26 of 208 informative" (line 19) and Result 2/3's "44 of 208"
+  are genuinely different numbers from different-scope runs (the 26 traces to an older,
+  narrower 4-condition 9B run per this file's "honest reading of the 9B null" entry,
+  2026-08-24; the 44 is the current 9-condition run) - not a contradiction once traced,
+  but the write-up never says so, and a naive reader hits two different answers to the
+  same question with no explanation.
+- The first "Update, 2026-08-31" paragraph's trailing clause ("Result 3 below still
+  shows the pre-fix table and needs a full rewrite") is stale, contradicted three lines
+  later by the second Update paragraph and by Result 3 itself, which has in fact been
+  rewritten. Already flagged once today; still there, now confirmed by a second,
+  independent reviewer pass.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
