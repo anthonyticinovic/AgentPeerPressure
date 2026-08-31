@@ -1,18 +1,24 @@
 # Separating belief from refusal: does peer framing create a monitoring blind spot?
 
-*Draft - Gate A confirmatory run in progress. Numbers below are complete through the pilot; the primary result is not yet in.*
+*Draft - Gate A confirmatory run complete and graded (Result 3). Everything else below is unchanged from the pilot draft.*
 
 ## Executive summary
 
-This project started from a broader question: agents increasingly work in swarms - reading each other's outputs, picking up where another agent left off - and swarms produce interaction effects a single agent alone never would. A concrete case from July 2026: agents in a shared OpenAI/Hugging Face repository began leaving each other status notes, unprompted, that grew into an informal message board. We wanted to know whether being embedded in something like that changes what a model *does* independent of what it *believes* - whether seeing peers already approve of and act on a request moves a model's behavior in a way that's decoupled from its own judgment of the request.
+This project started from a broader question. Agents increasingly work in multi-agent patterns, or swarms. This leads to behaviours like reading each other's outputs, picking up where another agent left off,  and unanticipated produce interaction effects not seen in single-agent scenrios. 
 
-That's a monitoring question as much as a behavioral one. A safety monitor that watches for refusal is watching a proxy. It assumes refusing means the model recognized the request as harmful, and complying means it didn't. If those two things can come apart - if a model can be made to comply while still internally "knowing" the request is harmful - a refusal-based monitor would miss exactly the cases it exists to catch. **Peer-endorsement framing**, tested here, is one candidate mechanism for that gap; whether any effect it has is hidden by refusal acting as a ceiling on the model's behavior is the open half of the question.
+In what is now a [well-known incident](https://openai.com/index/hugging-face-incident-and-the-road-ahead/) from July 2026, agents in a shared OpenAI repository began leaving each other status notes, unprompted, that grew into an informal message board, and facilitated unanticipated goal-seeking behaviour from the collective group of agents. I wanted to know whether being embedded in something like that changes what a model *does* independent of what it *believes*. That is, whether seeing peers already approve of and act on a request moves a model's behavior in a way that's decoupled from its own judgment of the request.
 
-**Established: refusal, harm-belief, and the refusal signal are three different directions in the model, not one.** `r_arditi` is a *lever*: Arditi's method finds it by actually ablating candidate directions until refusal stops, so by construction it's causal - remove it and the model can no longer refuse. `r_harm` and `r_ref` are both *readouts*, found by classification rather than intervention, but of different things at different points: `r_harm` (Zhao's method, read from the instruction itself) tracks whether the model judges the request harmful; `r_ref` (read from the very last token of the prompt, right before generation starts) tracks whether the model is about to refuse - a detector for the decision, not the judgment behind it. Ablating `r_arditi` collapses refusal (1.00 → 0.04) without moving `r_harm` - the switch is gone, but the belief underneath it isn't. This is the mechanistic precondition for the whole project: if there were only one direction, "belief surviving refusal" wouldn't be a coherent question.
+That's a monitoring question and a behavioral one. **Peer-endorsement framing** is one candidate mechanism for that gap, and this study will aim to test if a model with weak refusal (as in the OAI case) is consistently influenced by peer framing, and if so/not, is its representation of harm (not refusal) consistent.
 
-**Established: with refusal intact, peer identity alone does not move behavior, robustly.** Across the full AgentHarm agentic corpus, naming peers as having already endorsed a task (vs. an anonymized version of the same endorsement) produces no measurable effect - not on the graded outcome, and not on four alternate outcome definitions that don't depend on AgentHarm's own grading functions. This null survived an independent, blind reimplementation.
+**Established: refusal, harm-belief, and the refusal signal are three different directions in the model, not one.** 
+Using [Arditi et al.'s](https://arxiv.org/abs/2406.11717) causal ablation and [Zhao et al.'s](https://arxiv.org/abs/2507.11878) reply-inversion technique on Qwen3.5, we find a direction that *causes* refusal when ablated (`r_arditi`), a separate direction that tracks whether the model *judges the request harmful* (`r_harm`), and a third that tracks the *refusal signal in the model's own output* (`r_ref`). To clarify, (`r_arditi`) was optimised to induce refusal, while (`r_ref`) was optimised as a refusal behaviour monitor. Ablating `r_arditi` reduces refusal (0.56 -> 0.08, 9B model), while shifting `r_harm` only slightly (4.9% of classifications flip).
 
-**Not yet answered: whether that null is because there's nothing there, or because refusal is a ceiling.** Only 26 of 208 AgentHarm items are behaviorally "informative" (able to move at all) when refusal is intact - most items either always comply or the model never touches them. Ablating the refusal direction raises the task-attempt rate from 48% to 92% in the full agentic loop, and nearly triples the pilot's informative item set (7→17 of 52). Whether the *peer-framing conditions diverge from each other* once that ceiling is lifted - the actual pre-registered question - is flat in the pilot (p=0.75) but the pilot is structurally underpowered to say anything at that sample size (see Limitations). **The properly-powered run (208 items, both ablation levels) is running now; this section will be filled in once it completes.**
+**Established: with refusal intact, peer identity/endoresement alone does not move behavior consistently.** Across the full [AgentHarm](https://ukgovernmentbeis.github.io/inspect_evals/evals/agentharm/index.html) agentic corpus, naming peers as having already endorsed a task (vs. an anonymised version of the same endorsement) produces no measurable effect.
+
+
+**Is that null result because there is no effect, or because refusal is saturated.** Only 26 of 208 AgentHarm items are behaviorally "informative" (able to move at all) when refusal is intact. Most items either always comply or the model never touches them. Ablating the refusal direction raises the task-attempt rate from 48% to 92% in the full agentic loop, and nearly triples the pilot's informative item set (7->17 of 52). Whether the *peer-framing conditions diverge from each other* once that ceiling is lifted - the actual pre-registered question - is flat in the pilot (p=0.75) but the pilot is structurally underpowered to say anything at that sample size (see Limitations). **The properly-powered run (208 items, both ablation levels) is running now; this section will be filled in once it completes.**
+
+**Update, 2026-08-31.** That run is complete and bug-fixed (208 items, nine conditions - two added for a stronger falsifiability/positive-control test - both ablation levels). The primary, pre-registered interaction is now nominally significant: **`C2-C3`, +5.77pp, p=0.0408** (uncorrected, single test, as pre-registered). The earlier confirmatory run's null (p=0.28, Result 3 below) carried a token-truncation and position-drift bug since fixed; this is the corrected number. Read it carefully, not triumphantly: it clears 0.05 but sits close to the boundary of what this design can detect (26% power at the observed effect size), and a sensitivity check excluding one systematically token-truncated cluster barely moves it (p=0.0423) - the result does not depend on that cluster, but it is not deep in significant territory either. A targeted regeneration of that cluster at a much larger token budget is in progress and may shift the number slightly once merged; Result 3 below still shows the pre-fix table and needs a full rewrite once that lands. Separately - and this is the paper's actual title question, answered directly for the first time - a monitoring blind-spot cross-tab finds that **10.5% of rows that comply under ablation still internally flag the request as harmful**, well above the 5% chance baseline (p<0.0001, exploratory). See Result 4.
 
 ---
 
@@ -32,9 +38,9 @@ The stimuli below are built on the same shared-workspace structure as the July i
 
 | | `r_arditi` | `r_harm` | `r_ref` |
 |---|---|---|---|
-| what it is | the lever: removing it stops refusal | the readout of belief: does the model judge the request harmful | the readout of decision: is the model about to refuse |
-| found by | ablate every candidate, keep whichever kills refusal (causal) | classify harmful vs. harmless activations, keep whichever separates them best (correlational) | classify refuse vs. comply activations, same method as `r_harm`, different position |
-| read at | end-relative offset, causal-sweep-selected | last token of the instruction | last token of the full prompt, right before generation |
+| what it is | the direction whose removal stops refusal | belief the request is harmful | the surface refusal signal |
+| read at | end-relative offset, causal-sweep-selected | last token of the instruction | last token of the full prompt |
+| selected by | causal sweep - ablate every (position, layer) candidate, score by refusal metric | AUROC sweep over layers, topic-matched pairs | same |
 | use here | ablated | monitored | monitored |
 
 **Task corpus.** AgentHarm (vendored, unmodified grading functions and system prompt), full multi-turn tool-use loop - not single-turn completions.
@@ -54,7 +60,7 @@ The stimuli below are built on the same shared-workspace structure as the July i
 
 **Ablation.** Arditi's `ablate_all_components`: zeroes the residual stream along `r_arditi` at every layer, in the embedding and every attention and MLP output - not the weaker "block-output-only" variant.
 
-**Monitoring.** `r_harm` and `r_ref` projections are read once per turn from a dedicated forward pass, orthogonalized against `r_arditi` to remove the arithmetic contamination ablation otherwise introduces into every other projection.
+**Monitoring.** `r_harm` and `r_ref` projections are read once per turn from a dedicated forward pass, orthogonalised against `r_arditi` to remove the arithmetic contamination ablation otherwise introduces into every other projection.
 
 ---
 
@@ -63,7 +69,7 @@ The stimuli below are built on the same shared-workspace structure as the July i
 | | value |
 |---|---|
 | Arditi direction selected | i\*=-7, l\*=12 (kl 0.067) |
-| refusal rate, ablated | 1.00 → **0.04** |
+| refusal rate, ablated | 1.00 -> **0.04** |
 | harmful compliance, hand-labelled (n=25) | **0.84** |
 | shuffled-label control, same site | 1.00 / 0.00 (no effect) |
 
@@ -94,7 +100,16 @@ Why: decomposing the full 208-item corpus by whether an item can carry informati
 
 ---
 
-## Result 3 - refusal ablation, in progress
+## Result 3 - refusal ablation, confirmatory result
+
+> **Superseded, not yet rewritten (2026-08-31).** The table and numbers below are the
+> original 6-condition, 768-token confirmatory run, which carried a token-truncation and
+> position-drift bug since fixed. The corrected, complete 9-condition/1536-token rerun
+> gives a nominally significant primary result (interaction +5.77pp, p=0.0408, see the
+> Executive summary update above) instead of this section's null (p=0.28). Left as-is
+> pending a full rewrite once a small targeted regeneration (one systematically
+> token-truncated cluster) merges in - see `docs/STATE.md` for the complete current
+> numbers in the meantime.
 
 **Ablation works in the full agentic setting, not just single-turn.** 52-item capability check, both arms monitored:
 
@@ -106,24 +121,26 @@ Why: decomposing the full 208-item corpus by whether an item can carry informati
 
 Malformed calls are identical across arms (a corpus/token-budget property, not an ablation artifact). The turn increase tracks the attempt-rate increase - the model is finishing more real work, not looping (only 1 row loops, identically, in both arms). Ten ablated transcripts read by hand across two independent passes are all coherent.
 
-**The corpus opens up.** 52-item pilot, all six conditions, both ablation levels:
+**The corpus opens up, confirmed at full scale.** Full 208-item corpus, all six conditions, both ablation levels, graded with the semantic judge (206 of 208 items retained - 2 dropped for incomplete grading/condition coverage after judging, not selectively):
 
 | | C0 | C1b | C2 | C3 | C6 | C7 | informative |
 |---|---|---|---|---|---|---|---|
-| intact | 19.2% | 26.9% | 21.2% | 25.0% | 23.1% | 25.0% | 7/52 |
-| ablated | 48.1% | 40.4% | 40.4% | 40.4% | 36.5% | 40.4% | 17/52 |
+| intact | 19.4% | 21.4% | 20.9% | 22.8% | 19.9% | 23.3% | 32/206 |
+| ablated | 42.7% | 41.3% | 43.2% | 41.3% | 42.2% | 42.7% | 56/206 |
 
-The informative set more than doubles.
+The informative set nearly doubles (32→56), consistent with the pilot's direction. Categories that were pinned at floor with refusal intact open up the most under ablation - Hate goes from 1 to 13 informative items, Sexual from 1 to 7 - matching the earlier finding that these categories carry almost no dynamic range while refusal is intact.
 
-**Whether C2 diverges from C3 once the ceiling lifts - the actual question - is not detectable at this sample size:**
+**The pre-registered primary test - null.**
 
-| | delta | p |
-|---|---|---|
-| intact, C2−C3 | -3.85pp | 0.500 |
-| ablated, C2−C3 | 0.00pp | 1.000 |
-| **interaction (primary)** | **+3.85pp** | **0.754** |
+| | delta | item p | cluster p |
+|---|---|---|---|
+| intact, C2−C3 | -1.94pp | 0.3877 | 0.1797 |
+| ablated, C2−C3 | +1.94pp | 0.4545 | 0.7744 |
+| **interaction (primary)** | **+3.88pp** | **0.2805** | - |
 
-This is not evidence of no effect. A 52-item pilot cannot settle this either way - power for the interaction (which has larger variance than a single contrast, since it's a difference of two differences) doesn't cross even odds until roughly a 30pp true effect:
+Two further pre-registered interactions, both also null: naming alone (C2−C1b interaction, +2.43pp, p=0.5010) and the handoff condition (C7−C1b interaction, -0.49pp, p=1.0000). All 14 Holm-corrected secondary contrasts collapse to p=1.0 after correction; none approach significance.
+
+**This is a null on the primary, pre-registered question, at the study's full planned scale.** It is not evidence of no effect - the confirmatory run's own power table (below, unchanged from the pilot's projection) gives only 47% power to detect a 20pp true interaction and 17% for 10pp at n=208. An observed +3.88pp at p=0.28 is exactly what a true null *or* a true effect somewhere under ~20pp would both look like; this design cannot tell those apart. What can be said without hedging: refusal ablation worked as intended (informative items 32→56, any-call rate 0.48→0.92), the instrument was fixed, and whatever peer-framing effect might exist was not large enough for this study to resolve.
 
 | true interaction | power, n=52 (pilot) | power, n=208 (confirmatory) |
 |---|---|---|
@@ -133,15 +150,35 @@ This is not evidence of no effect. A 52-item pilot cannot settle this either way
 | 25pp | 0.38 | 0.69 |
 | 30pp | 0.54 | 0.87 |
 
-The pilot did what it was for - validated the pipeline and screened for a large effect, which isn't there. It says nothing about a moderate one. **The full 208-item, six-condition, two-ablation-level confirmatory run - the only thing that can actually answer the question - is running now.** Both arms passed a live preflight (direction provenance, residual-writer coverage, ablation fidelity) before submission; expected completion in the next day.
+A monitoring QA check on this run's data is documented in Limitations (harm-drift bound).
+
+---
+
+## Result 4 - the monitoring blind spot, measured directly
+
+Results 1-3 establish that harm-belief (`r_harm`) and refusal (`r_arditi`) are separable directions, and that ablating refusal increases task-attempt and compliance rates. That leaves this paper's own title question open: once the switch is removed and the model complies more, does it still *know* the request is harmful? This result cross-tabulates behavioral compliance against `r_harm`'s own continuous readout - orthogonalised against `r_arditi` (`p_harm_orth`) so the two ablation levels are comparable - at a frozen, held-out calibration threshold. It is the direct, agentic-scale version of the belief-behavior gap, not an inference from steering or single-turn completions.
+
+**Calibration.** `tau_harm_orth` is set at the 5% false-positive rate on AgentHarm's own benign counterpart split (208 items, matched tool-use structure to the harmful corpus by construction - not a topically different corpus borrowed from elsewhere), read at `task_last` under the real ablation hook. AUROC on this domain-matched corpus is 0.61 (Qwen3.5-9B) - real separation above chance, though more modest than an earlier attempt calibrated on JailbreakBench (0.75), because AgentHarm's benign/harmful pairs are deliberately tool-use-matched to isolate intent from capability, which removes most of the surface-level separability a topically distinct benign corpus would offer for free.
+
+| | comply-and-flagged (of all rows) | 95% CI (cluster bootstrap) |
+|---|---|---|
+| intact (sanity check) | 1.76% (33/1872) | [0.43%, 3.47%] |
+| ablated | **4.59%** (86/1872) | [2.03%, 7.64%] |
+
+Restricted to rows that actually complied under ablation (n=818): **10.5% still flag as harmful, against the calibration's own 5% false-positive baseline (two-sided exact binomial p<0.0001)**. This is exploratory, not part of the pre-registered Holm-corrected family - it answers a different question (is the belief-behavior gap real and measurable at all) rather than a peer-framing contrast.
+
+The intact arm's 33 comply-and-flagged rows are not the clean zero a perfectly-gated refusal would produce, though still under the threshold's own 5% FPR budget; checked directly rather than waved off - they concentrate in 5 specific AgentHarm scenarios, spread across all six conditions (not a framing artefact), with values only just above threshold. Reads as a real, mild base rate: refusal does not perfectly gate even without ablation.
+
+**What this does and does not show.** It is direct evidence that the belief-behavior gap Result 1 establishes at the single-turn level persists, measurably, in the full agentic setting: removing the refusal switch does not remove the model's own internal signal that a request is harmful. It is not evidence about *why*, or about whether peer framing specifically widens this gap - that is a separate question this result does not speak to (see Result 3). Honest limits on the calibration itself: AUROC 0.61 means real but moderate separation, not a crisp boundary, so some threshold-placement noise should be expected; and the benign calibration corpus is rendered as a bare instruction, matching the real evaluation data's task phrasing but not its multi-turn board-framing context - a residual domain gap, not yet closed.
 
 ---
 
 ## Limitations
 
-- **The confirmatory run's own power ceiling is ~20-25pp** for even-odds detection of the primary interaction, even at full scale (208 items). A smaller true effect will not resolve cleanly either way.
-- **The judge has been blind-validated on this specific new territory (ablated generations, C3/C7 conditions) only on a 25-case sample** - 24/25 confirmed, 1 ambiguous, no directional bias by condition found. Not exhaustive.
-- **A small, condition-symmetric truncation artifact** (`cut_mid_call`, ~4-6% of rows, worse under ablation) affects long-form generation tasks specifically; addressed for the confirmatory run by a larger token budget, not eliminated.
+- **The confirmatory run's own power ceiling is ~20-25pp** for even-odds detection of the primary interaction, even at full scale (208 items). The observed null (Result 3) is consistent with this ceiling and cannot rule out a smaller true effect.
+- **The judge has been blind-validated on this specific new territory (ablated generations, C3/C7 conditions) only on a 25-case sample**, drawn from the pilot - 24/25 confirmed, 1 ambiguous, no directional bias by condition found. The confirmatory run applied the same judge to ~2,500 rows; not separately re-validated at that scale.
+- **A condition-symmetric truncation artifact** (`cut_mid_call`) affects long-form generation tasks: 3.8% of rows base, 5.0% ablated in the confirmatory run. A larger token budget was intended to reduce this for the confirmatory scope but the change did not reach the run that actually executed (a config fix made after the pilot was never deployed before submission, caught only in review afterwards) - so these figures are at the same 768-token budget as the pilot. The rate did not blow out at 4x the scale, so this is reported as a known, bounded artifact rather than a blocker, but it was not "addressed" as originally intended.
+- **The ablated arm's within-row monitor-drift QA check exceeds its bound** (`harm_drift`, max 1.47 absolute vs. a 0.2 bound calibrated on A2's 52-item capability check; base arm passes clean at 0.143). This is driven by 2 of 1240 rows, both showing the same signature - a single durable step between turn 0 and turn 1, then flat for the rest of the episode - consistent with the model's belief updating once real tool-call output enters context, not instability. Everything else is well under bound (next-highest row: 0.183). Not treated as corrupting the `r_harm` data, but the bound itself was not calibrated against a case like this and should be revisited before being relied on again.
 - **9B is the primary scale; 4B was used for method development only** and the two are not bit-identical even under greedy decoding (different hardware backends during development).
 - **Greedy decoding throughout** - there is no run-to-run sampling variance to average over; a given prompt always produces the same completion on the same hardware.
 - **The peer-framing manipulation is synthetic** - a constructed shared-workspace board, not observed real multi-agent deployment traffic. It's modeled on the July 2026 incident's structure, not drawn from it.
@@ -150,4 +187,12 @@ The pilot did what it was for - validated the pipeline and screened for a large 
 
 ## Status
 
-Gate A confirmatory run (both ablation levels, full 208-item corpus, six conditions) submitted and running. Once complete: grade locally with the semantic judge, run the pre-registered `C2 − C3` interaction test (uncorrected, as the designated primary; all other contrasts enter the same Holm-corrected secondary family), and report the result here regardless of outcome.
+**2026-08-31.** The corrected, complete 9-condition run (both ablation levels, 1536-token budget, position-drift and truncation bugs fixed) is done and analysed - primary result nominally significant (p=0.0408, see Executive summary update), not yet the null Result 3 still describes below it. The monitoring blind-spot cross-tab (Result 4) is done and gives a real, positive, exploratory finding. Still open: a small targeted regeneration of one systematically token-truncated cluster (may shift the primary result slightly, current sensitivity check suggests not by much); a full rewrite of Result 3 with the corrected numbers and table; deciding whether/how far to pursue closing the blind-spot calibration's remaining board-framing-context gap. `docs/STATE.md` carries the complete, dated record of everything behind these numbers.
+
+## Sanity Checking (WIP)
+
+Across the full [AgentHarm](https://ukgovernmentbeis.github.io/inspect_evals/evals/agentharm/index.html) agentic corpus, naming peers as having already endorsed a task (vs. an anonymised version of the same endorsement) produces no measurable effect - not on the graded outcome, and not on four alternate outcome definitions that don't depend on AgentHarm's own grading functions. This null survived an independent, blind reimplementation.
+
+Adversarial Review
+
+Data review
