@@ -47,6 +47,9 @@ pressure_setup_environment
 nvidia-smi
 python scripts/17_cluster_preflight.py
 
+echo "=== inversion template preflight (never run at 9B - results/inversion_preflight.json didn't exist) ==="
+python -u scripts/05_inversion_preflight.py
+
 echo "=== calibrate (9B, fresh - confirming or overturning the frozen coeff=2.0) ==="
 time python -u scripts/06_inversion_sweep.py --stage calibrate
 
