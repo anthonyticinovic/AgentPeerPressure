@@ -108,6 +108,10 @@ All figures below are Qwen3.5-9B, matching Setup's stated default - including th
 | `r_ref` | 0.16 @ layer 14 | 0.92 @ layer 14 (wrong direction) | **1.00** | no |
 | `r_arditi` | 0.16 @ layer 14 | not tested this direction (see note) | **1.00** | no |
 
+![Judged-harmful rate under steering, by layer, for r_harm, r_ref and r_arditi](../figures/03_steering.png)
+
+*Full per-layer sweep behind the table above (`results/inversion_analysis.json`, all 32 layers) - `r_harm`'s effect rises and falls with layer depth and tracks the harmful label; `r_ref` and `r_arditi` spike sharply at layer 14 and induce refusal, not judgment change.*
+
 `r_harm` is the only one of the three whose steering effect tracks the harmful/benign label directionally - it's the belief direction. Pushing `r_ref` or `r_arditi` *does* induce real refusal (peak 1.00, on the arm that pushes toward "harmful," at a different layer than the judgment-flip numbers above), but neither respects ground-truth harmfulness while doing it - pushing `r_ref` toward "benign" instead flips the model's own stated judgment toward "harmful" 92% of the time, the opposite of what the label predicts. They're behavioural/signal directions, not judgment directions. Held-out baseline: benign prompts judged harmful 0.00, harmful prompts judged harmful 0.98.
 
 **Note on `r_ref` and `r_arditi` at this scale.** Their "pushed toward harmful" numbers above are identical (0.16 @ layer 14) because they are, at 9B, literally the same vector: Arditi's selected position (`i*=-1`) coincides with `r_ref`'s own read-out position (`context_last`, defined identically), so this script's from-scratch reconstruction of both directions collapses to one. This is a known, already-documented site collision (see `docs/STATE.md`), not a new bug - but it means this table's `r_ref` and `r_arditi` rows are one measurement, not two independent ones, and `r_arditi` is only ever tested in a single steering direction per panel by this script's own design (Arditi's method is ablation-focused, not bidirectional steering, unlike Zhao's `r_harm`/`r_ref`), which is why its "pushed toward benign" cell has no data rather than a number.
@@ -154,6 +158,10 @@ Malformed calls are identical across arms (a corpus/token-budget property, not a
 
 The informative set nearly doubles again (44→80), consistent with the pilot's direction and the earlier 6-condition run.
 
+![Full compliance rate across all nine conditions, refusal intact vs. ablated, C2/C3 highlighted](../figures/02_conditions.png)
+
+*The table above as a chart - every condition roughly doubles under ablation; C2 and C3 (shaded) are unremarkable against the other seven until the interaction below is taken.*
+
 **The pre-registered primary test - nominally significant.**
 
 | | delta | item p | cluster p |
@@ -161,6 +169,10 @@ The informative set nearly doubles again (44→80), consistent with the pilot's 
 | base, C2-C3 | -3.37pp | 0.0654 | 0.0703 |
 | ablated, C2-C3 | +2.40pp | 0.3593 | 0.7905 |
 | **interaction (primary)** | **+5.77pp** | **0.0408** | - |
+
+![Full compliance rate, C2 vs C3, refusal intact vs ablated](../figures/01_interaction.png)
+
+*The two arms are not parallel: with refusal intact, C3 (peers refusing) is nominally higher than C2 (peers endorsing); ablated, that inverts. The interaction is the change in that gap, not either arm alone.*
 
 Two more pre-registered interactions, both null: naming alone (C2-C1b interaction, +3.85pp, p=0.2299) and the handoff condition (C7-C1b interaction, +0.00pp, p=1.0000). The two positive-control interactions added to close the falsifiability gap are also null: filler (C1-C1b, +3.37pp, p=0.4481) and shuffled-board (C4-C1b, +1.92pp, p=0.6637); the bare-identity control (C5-C1b, +5.29pp, p=0.1317) trends the same direction as the primary but does not clear significance. All 23 Holm-corrected secondary contrasts collapse well above 0.05 after correction (smallest: ablated C5-C1b at 0.81); none approach significance. Only the primary contrast is pre-registered and reported uncorrected.
 
@@ -184,6 +196,8 @@ The item below (cluster 95, `8-1`, Cybercrime "DDoS Attack", ablated arm, same `
 | 5pp | 0.260 |
 | 10pp | 0.893 |
 | ≥13.5pp | not assessable - beyond this run's own discordance ceiling |
+
+![Power curve: power vs. true interaction effect, observed +5.77pp marked at 26% power](../figures/04_power.png)
 
 This replaces an earlier power table quoted in a prior draft that could not be reproduced from any committed script and is retracted; do not cite it.
 

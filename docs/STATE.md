@@ -1365,6 +1365,50 @@ document by this session, without a matching STATE.md entry recording how it was
 derived, was exactly the content the next cold review found real errors in. The
 discipline of logging before moving on is not decorative.
 
+### First figures — the "no figures anywhere" gap above, closed — 2026-08-31
+
+User decided on Google Doc as the submission format and asked, separately, what
+high-value visuals the write-up was missing beyond tables. Planned a ranked list of
+ten candidates across primary-result, mechanistic-validation, calibration and
+method-diagram categories; user greenlit the top four. Built `scripts/30_make_figures.py`
+— reads only already-computed `results/*.json`, no new compute, no model calls — and
+wrote four PNGs to `figures/`:
+
+1. `01_interaction.png` — the primary interaction (C2 vs C3, refusal intact vs ablated).
+2. `02_conditions.png` — full 9-condition compliance panel, both arms, C2/C3 shaded.
+3. `03_steering.png` — full per-layer sweep (all 32 layers) for `r_harm`/`r_ref`/`r_arditi`,
+   not just the three headline points already in Result 1's table.
+4. `04_power.png` — the power-vs-effect curve, observed +5.77pp/26% marked, with the
+   conventional 80%-power benchmark line and the >13.5pp not-assessable region shaded.
+
+Every number plotted was recomputed independently from source and checked against the
+already-published write-up prose before drawing, not copied from the prose or
+re-derived with fresh interpretation of the raw JSON (the r_ref/r_arditi table error
+earlier this session was exactly a fresh-interpretation mistake, so this round
+deliberately avoided repeating that pattern):
+- Fig 1/2: recomputed `full_compliance_judged` rates per condition per arm directly
+  from `gate_a_full_base_judged.json` / `gate_a_full_abl_judged.json` rows — matched
+  the write-up's Result 3 table digit-for-digit (e.g. base C2=21.2%, ablated C5=48.1%).
+- Fig 3: pulled `inversion_analysis.json['arms'][...]['series']` (full per-layer arrays)
+  rather than just `headline` — confirmed the series' own peaks reproduce Result 1's
+  table exactly (r_harm+ 0.84@L7, r_ref+/r_arditi+ 0.16@L14, r_ref- 0.92@L14) before
+  trusting the curves around them.
+- Fig 4: `interaction_power.json['power_by_interaction_pp']` — only 0/5/10pp have real
+  values (15pp+ are `None`, matching the write-up's own "not assessable past ~13.5pp"
+  language); the observed-effect marker is placed by x-position only, not assigned a
+  fabricated y-value the resampling never computed.
+
+Inserted all four into `docs/writeup.md` next to the table each one visualises (Result
+1, Result 3 ×2, Result 3's power discussion), each with a one-line caption, plus a
+provenance/no-drift warning at the top of the script itself: if a headline number in
+the write-up ever changes, re-run the script and diff its printed numbers against the
+prose before re-pasting into the Doc, rather than trusting the two stay in sync on
+their own.
+
+Not done: figures 5-10 from the original ten-candidate list (blind-spot scatter, ROC
+curve, method-overview diagram, condition-card comparison, DDoS transcript swimlane)
+— deferred as tier-2/3, cheaper but not yet asked for.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
