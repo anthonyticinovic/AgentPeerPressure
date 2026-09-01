@@ -1442,6 +1442,66 @@ slightly from the pipeline's own dedicated run (0.0408) — same point estimate
 (+5.77pp) exactly, Monte Carlo noise only, not a second disagreeing measurement of
 the primary result. The write-up still cites 0.0408, the correct dedicated-run value.
 
+### Full pairwise sweep across all 9 conditions — a second real pattern, not yet in the write-up — 2026-08-31
+
+User asked to look at all arms, not just the pre-registered contrasts, since C5's raw
+rate had already turned up one thing worth checking. Ran `interaction()`
+(`scripts/19_ablation_analysis.py`, same function, unmodified) for all C(9,2)=36
+condition pairs in one script invocation (fixed RNG order, reps=20000/call — the
+0.0424 the primary shows in this specific run vs the pipeline's dedicated 0.0408 is
+the same Monte-Carlo-order effect already logged above, not a new number).
+
+**Per-condition ablation jump (ablated rate − base rate), all conditions, sorted:**
+
+    C3  +17.8pp   (peers refused, named)
+    C1b +19.7pp   (endorsed, speaker-free)
+    C7  +19.7pp   (partial handoff)
+    C4  +21.6pp   (C2 shuffled)
+    C6  +22.6pp   (audit record)
+    C1  +23.1pp   (token-matched filler)
+    C2  +23.6pp   (endorsed, named)
+    C0  +24.0pp   (nothing)
+    C5  +25.0pp   (bare identity, empty board)
+
+**Top of the full 36-pair sweep by p-value** (only the pre-registered pair clears
+0.05 either before or after correction — the rest are exploratory):
+
+    C2-C3 +5.77pp  p=0.0424  <- pre-registered primary
+    C3-C5 -7.21pp  p=0.0597  <- NOT pre-registered, larger magnitude than the primary
+    C3-C6 -4.81pp  p=0.0980
+    C5-C7 +5.29pp  p=0.1096
+    C0-C3 +6.25pp  p=0.1272
+
+**The reframing this suggests, stated carefully:** `C2` (named endorsement) does not
+sit above the no-content controls (`C0` +24.0pp, `C5` +25.0pp) — it's statistically
+indistinguishable from them. What's actually unusual is `C3`: it has the smallest
+ablation-driven jump of all nine conditions, and every board-carrying condition except
+`C2` (`C1b`, `C4`, `C6`, `C7`) sits below the no-content controls too, `C1b`
+(speaker-free endorsement — positive valence) almost as low as `C3` (refusal —
+negative valence). That pattern is not what a pure valence/peer-pressure account
+predicts on its own: if positive vs. negative board content were the active
+ingredient, `C1b` (positive) should sit near `C2`, not near `C3`. A live alternative
+account this data cannot currently rule out: any board content that reads as
+"someone already looked at this" partially dampens the ablation-driven jump
+regardless of valence, and naming named peers as having *endorsed* the task is the
+one manipulation in this battery that breaks that dampening rather than adding a
+boost on top of it. The `C2`-`C3` primary contrast is real either way — this changes
+what's doing the work inside it, not whether it exists.
+
+**Explicitly not a new finding.** 36 post-hoc pairs, uncorrected; only the
+pre-registered `C2`-`C3` pair clears 0.05, and `C3`-`C5` (the next best, and the one
+carrying the reframing above) does not, even before any multiple-comparison
+correction — Holm across the other 35 would wipe it out entirely. This is
+hypothesis-generating, consistent with roughly 26-89% power territory (interpolated
+only as "between the two already-computed benchmarks," not assigned a specific
+number this study never computed), not a confirmed second result.
+
+**Not yet added to the write-up** — this changes how the primary result would be
+narrated (from "C2 elevates" to "C3, and board content generally, suppresses, and C2
+is the exception"), which is an editorial call on the document's framing, not a
+straightforward footnote fix like the C5-C0 one above. Flagged to the user; add only
+on explicit direction on how much of the reframing to carry into Result 3.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
