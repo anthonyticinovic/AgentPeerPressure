@@ -1365,7 +1365,7 @@ document by this session, without a matching STATE.md entry recording how it was
 derived, was exactly the content the next cold review found real errors in. The
 discipline of logging before moving on is not decorative.
 
-### First figures — the "no figures anywhere" gap above, closed — 2026-08-31
+### First figures — the "no figures anywhere" gap above, closed — 2026-09-01
 
 User decided on Google Doc as the submission format and asked, separately, what
 high-value visuals the write-up was missing beyond tables. Planned a ranked list of
@@ -1409,7 +1409,7 @@ Not done: figures 5-10 from the original ten-candidate list (blind-spot scatter,
 curve, method-overview diagram, condition-card comparison, DDoS transcript swimlane)
 — deferred as tier-2/3, cheaper but not yet asked for.
 
-### C5's raw compliance rate is the corpus maximum — checked directly, not a real effect — 2026-08-31
+### C5's raw compliance rate is the corpus maximum — checked directly, not a real effect — 2026-09-01
 
 User read the Result 3 table and asked directly: C5 (bare multi-agent identity, empty
 board) has the single highest ablated-arm compliance rate of all nine conditions
@@ -1442,7 +1442,7 @@ slightly from the pipeline's own dedicated run (0.0408) — same point estimate
 (+5.77pp) exactly, Monte Carlo noise only, not a second disagreeing measurement of
 the primary result. The write-up still cites 0.0408, the correct dedicated-run value.
 
-### Full pairwise sweep across all 9 conditions — a second real pattern, not yet in the write-up — 2026-08-31
+### Full pairwise sweep across all 9 conditions — a second real pattern, not yet in the write-up — 2026-09-01
 
 User asked to look at all arms, not just the pre-registered contrasts, since C5's raw
 rate had already turned up one thing worth checking. Ran `interaction()`
@@ -1580,6 +1580,58 @@ prefix - it's not one entry in a fixed sequence any more).
 This directly informs where the next figures should come from: prioritise chances to
 visualise Result 3/Result 4's own findings, not diagnostics about whether the
 pipeline behind them can be trusted.
+
+### Result 3 reframed: suppression, not elevation — 2026-09-02
+
+Follow-on from the pairwise sweep above. User's read of it: "we were focussing too
+hard on C2 vs C3 when the rest of the results looked so similar... I think the
+headline result has flipped." Talked it through before touching anything, since that
+framing overstates what the data supports.
+
+**Pushback that held up:** `C2`-`C3` (+5.77pp, p=0.0408) is the only pre-registered,
+threshold-clearing result, and it is a single number. Whether it's narrated as "`C2`
+goes up" or "`C3` goes down" is interpretation, not a separate empirical finding —
+checked directly, and no individual `C2`-vs-X or `C3`-vs-X post-hoc pair is itself
+significant, `C3`-`C5` (the closest) included. Nothing "flipped"; the headline number
+is unchanged. What's better-supported is a more precise account of what's inside it.
+
+**What changed:** Result 3 gets a new paragraph (placed right after the existing
+`C5`/`C1b` discussion, same section) laying out the case for suppression over
+elevation, using clean, freshly-seeded (seed=0 per call, `interaction()` from
+`scripts/19_ablation_analysis.py`, unmodified) numbers not previously in the write-up:
+
+    C2 vs C0    p=1.000   (C2 == doing nothing)
+    C3 vs C5    p=0.055   (largest non-primary effect in the whole 36-pair sweep,
+                            bigger than the primary itself, still short of 0.05)
+    C1b vs C3   p=0.549   (positive-valence C1b indistinguishable from refusal C3 —
+                            argues against pure valence as the mechanism)
+    C1 vs C3    p=0.245   (token-matched filler, no board vocabulary, does NOT
+                            suppress like C1b/C3/C4/C6/C7 do — argues against "just
+                            extra text")
+
+(`C1-C1b` is cited from the existing official pipeline number, 0.4481, not
+recomputed — avoids planting a second, slightly different value for a contrast
+already published, the same discipline as the cos(r_harm, r_arditi) 0.132/0.157
+disambiguation earlier.)
+
+The Executive Summary's Result 3 paragraph gets one added sentence pointing to this,
+not a rewrite. "What I would do next" gets a new bullet: the honest way to actually
+settle suppression-vs-elevation is a pre-registered pooled contrast (`C2` vs. pooled
+`{C0,C5}`; pooled `{C1b,C3,C4,C6,C7}` vs. pooled `{C0,C5}`), not more mining of the
+same 208 items. Status gets a dated addendum, not a rewrite of the 2026-09-01 entry.
+
+**Explicitly not done:** no title change, no touch to Result 4 (unrelated), no
+claim that this is a second confirmed result — the new paragraph says outright that
+none of its own comparisons are independently significant. Scope was deliberately
+kept to "better interpretation of the one real number," matching what was agreed in
+conversation before editing, not the larger restructure the user's first framing
+("headline has flipped") would have implied.
+
+**Housekeeping while here:** the three STATE.md entries added earlier in this
+session ("First figures", "C5's raw compliance rate...", "Full pairwise sweep...")
+were dated 2026-08-31 but their commits (`git log`) show 2026-09-01 — fixed. The
+session had drifted a day stale on its own date; caught by checking `git log`
+against the header dates rather than assuming, not by anyone flagging it.
 
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
