@@ -1502,6 +1502,59 @@ is the exception"), which is an editorial call on the document's framing, not a
 straightforward footnote fix like the C5-C0 one above. Flagged to the user; add only
 on explicit direction on how much of the reframing to carry into Result 3.
 
+### Figures, second pass — three of the first four cut or merged after honest review — 2026-09-01
+
+User's own review of the first four figures: "I honestly dont like any of the figures
+you have made, they are mainly figures for the sake of it... basically all of these
+could be replaced with a table that would be clearer." Right call, checked against
+each figure rather than defended on reflex:
+
+1. **Interaction line plot (old fig 1) — cut outright.** Four numbers on a chart. The
+   crossing lines made a 26%-power, p=0.041 effect look more dramatic than it is —
+   closer to misleading than illustrative.
+2. **9-condition paired bars (old fig 2) — real idea, wrong chart.** 18 bars + a legend
+   to decode a pattern ("where do C2/C3 rank") that a table can't show but that paired
+   vertical bars don't show well either.
+3. **3-panel steering sweep (old fig 3) — the one that survived.** 32-layer shape is
+   evidence a 3-number table cannot carry. Trimmed from 3 panels to 2: the write-up's
+   own text already discloses `r_arditi` is the identical vector to `r_ref` at this
+   scale, so a third panel of identical data was padding — now a one-line footnote.
+4. **3-point power "curve" (old fig 4) — the weakest of the four.** Three real values
+   (0/5/10pp) joined by straight lines pretending to be a smooth function. Worse than
+   the table it replaced, because the table didn't imply false smoothness.
+
+New standard adopted for what earns a figure at all: **shape, rank, or trend a table
+genuinely hides — not a prettier restatement of numbers already in one.**
+
+Rebuilt as three figures (`scripts/30_make_figures.py`, same file, second pass):
+- `01_steering.png` — old fig 3, minus the redundant `r_arditi` panel.
+- `02_conditions.png` — replaces old figs 1 and 2 together. A sorted horizontal dot
+  plot (Cleveland-style), one row per condition, ranked by ablated-arm rate, C2/C3
+  pulled out in colour and bold. Sorting is the thing a table can't do inline, and it
+  surfaces something genuinely non-obvious: C2 and C3 are not neighbours in ablated
+  rank (C2 2nd-highest, C3 mid-pack), so the interaction is a real change in their gap,
+  not two conditions that already stood out.
+- `03_power.png` — old fig 4, upgraded rather than cut. Re-ran
+  `scripts/21_interaction_power.py` at 1pp resolution instead of 0/5/10pp only
+  (`results/interaction_power_fine.json`, real resampling, ~8 min CPU, no Spartan
+  needed — timed locally first: 3 points at default sims/reps took 89s, so a 17-point
+  grid was budgeted at ~8.4 min before running). This is genuine new analysis, not a
+  replot — flagged to the user as a "your call" before running rather than assumed.
+  The result is an honest S-curve (slow 0-4pp, steep 5-11pp, saturating ~12-13pp) with
+  a real cliff at 14pp where the resampling runs out of discordant pairs to resample —
+  matches the write-up's already-published "beyond roughly 13.5pp" language exactly,
+  so no prose correction was needed once the real number came in.
+
+Old files deleted (`01_interaction.png`, `04_power.png`, the 3-panel `03_steering.png`)
+so nothing orphaned or unreferenced sits in `figures/`. `docs/writeup.md`'s three
+image references and captions updated to match; the coarse 0/5/10pp power table stays
+in the prose (it's what the surrounding text cites number-for-number) alongside the
+new figure rather than being replaced by it.
+
+Same discipline as the first pass: every number re-derived from source and printed to
+stdout before drawing, checked against the already-published prose, not copied from it
+or freshly reinterpreted from raw JSON.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
