@@ -1555,6 +1555,32 @@ Same discipline as the first pass: every number re-derived from source and print
 stdout before drawing, checked against the already-published prose, not copied from it
 or freshly reinterpreted from raw JSON.
 
+### Figures, third pass — down to one, the rest scrapped on taste, not defect — 2026-09-01
+
+User's verdict on the second-pass three: "I like figure 2, let's keep that. The others
+should be scrapped." Not a correctness objection - the steering sweep and power curve
+were both real, individually defensible (shape/trend a table can't show, which was
+exactly the bar set after the first-pass review). Scrapped anyway. Worth naming why,
+since it's a real editorial lesson, not just "user preference, no reason": both were
+*supporting/validation* figures, secondary to the paper's actual empirical claims. The
+conditions dot plot is different in kind - it carries the primary result itself, not
+evidence that the method behind the primary result is trustworthy. A figure earning
+"shows something a table can't" is necessary but, on this evidence, not sufficient -
+it also has to carry narrative weight for the paper's actual claims, not just for the
+paper's methodology.
+
+Action: `figures/01_steering.png` and `figures/03_power.png` deleted (recoverable from
+git history, commits `b3577e8`/`10437ea`, if ever wanted back - not rebuilt from
+scratch if so). Both image blocks and their captions removed from `docs/writeup.md`
+(Result 1 and the power-curve discussion in Result 3 are back to text/table only).
+`scripts/30_make_figures.py` cut down to the one surviving function, renamed
+`fig_conditions()`; output renamed `figures/conditions.png` (dropped the numeric
+prefix - it's not one entry in a fixed sequence any more).
+
+This directly informs where the next figures should come from: prioritise chances to
+visualise Result 3/Result 4's own findings, not diagnostics about whether the
+pipeline behind them can be trusted.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.

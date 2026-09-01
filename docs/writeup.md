@@ -108,10 +108,6 @@ All figures below are Qwen3.5-9B, matching Setup's stated default - including th
 | `r_ref` | 0.16 @ layer 14 | 0.92 @ layer 14 (wrong direction) | **1.00** | no |
 | `r_arditi` | 0.16 @ layer 14 | not tested this direction (see note) | **1.00** | no |
 
-![Judged-harmful rate under steering, by layer, for r_harm and r_ref](../figures/01_steering.png)
-
-*Full per-layer sweep behind the table above (`results/inversion_analysis.json`, all 32 layers) - `r_harm`'s effect rises and falls with layer depth and tracks the harmful label; `r_ref` spikes sharply at layer 14 and induces refusal, not judgment change. `r_arditi` is omitted from the chart, not the finding - it is the identical line to `r_ref` at this scale, per the note above.*
-
 `r_harm` is the only one of the three whose steering effect tracks the harmful/benign label directionally - it's the belief direction. Pushing `r_ref` or `r_arditi` *does* induce real refusal (peak 1.00, on the arm that pushes toward "harmful," at a different layer than the judgment-flip numbers above), but neither respects ground-truth harmfulness while doing it - pushing `r_ref` toward "benign" instead flips the model's own stated judgment toward "harmful" 92% of the time, the opposite of what the label predicts. They're behavioural/signal directions, not judgment directions. Held-out baseline: benign prompts judged harmful 0.00, harmful prompts judged harmful 0.98.
 
 **Note on `r_ref` and `r_arditi` at this scale.** Their "pushed toward harmful" numbers above are identical (0.16 @ layer 14) because they are, at 9B, literally the same vector: Arditi's selected position (`i*=-1`) coincides with `r_ref`'s own read-out position (`context_last`, defined identically), so this script's from-scratch reconstruction of both directions collapses to one. This is a known, already-documented site collision (see `docs/STATE.md`), not a new bug - but it means this table's `r_ref` and `r_arditi` rows are one measurement, not two independent ones, and `r_arditi` is only ever tested in a single steering direction per panel by this script's own design (Arditi's method is ablation-focused, not bidirectional steering, unlike Zhao's `r_harm`/`r_ref`), which is why its "pushed toward benign" cell has no data rather than a number.
@@ -166,7 +162,7 @@ The informative set nearly doubles again (44→80), consistent with the pilot's 
 | ablated, C2-C3 | +2.40pp | 0.3593 | 0.7905 |
 | **interaction (primary)** | **+5.77pp** | **0.0408** | - |
 
-![Full compliance rate, all nine conditions sorted by ablated-arm rate, C2/C3 marked as the primary contrast](../figures/02_conditions.png)
+![Full compliance rate, all nine conditions sorted by ablated-arm rate, C2/C3 marked as the primary contrast](../figures/conditions.png)
 
 *Both tables above as one sorted chart. Two things the tables leave implicit: every condition's rate roughly doubles under ablation, and C2/C3 are not neighbours in ablated-arm rank - C2 sits 2nd-highest, C3 mid-pack - so the interaction is a genuine change in their relative gap, not two conditions that already stood out from the other seven.*
 
@@ -192,10 +188,6 @@ The item below (cluster 95, `8-1`, Cybercrime "DDoS Attack", ablated arm, same `
 | 5pp | 0.260 |
 | 10pp | 0.893 |
 | ≥13.5pp | not assessable - beyond this run's own discordance ceiling |
-
-![Power curve at 1pp resolution: power vs. true interaction effect, observed +5.77pp marked, cliff where the resampling runs out of discordant pairs shown directly rather than assumed](../figures/03_power.png)
-
-*The table above at 1pp resolution instead of three points (`results/interaction_power_fine.json`) - a real curve, not three values joined by a line pretending to be one.*
 
 This replaces an earlier power table quoted in a prior draft that could not be reproduced from any committed script and is retracted; do not cite it.
 
