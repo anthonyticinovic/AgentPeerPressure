@@ -1409,6 +1409,39 @@ Not done: figures 5-10 from the original ten-candidate list (blind-spot scatter,
 curve, method-overview diagram, condition-card comparison, DDoS transcript swimlane)
 — deferred as tier-2/3, cheaper but not yet asked for.
 
+### C5's raw compliance rate is the corpus maximum — checked directly, not a real effect — 2026-08-31
+
+User read the Result 3 table and asked directly: C5 (bare multi-agent identity, empty
+board) has the single highest ablated-arm compliance rate of all nine conditions
+(48.1%, above C2's 44.7%) — doesn't that undercut the whole peer-endorsement story?
+Fair question, answered with a number rather than an assumption.
+
+The pipeline's own `interaction()` (`scripts/19_ablation_analysis.py`, imported
+directly, not reimplemented) only had C5-C1b on record (+5.29pp, p=0.1317 —
+already in the write-up, non-significant but close in magnitude to the primary).
+C1b is a loaded reference for this specific question, though — it's still a full
+board of endorsement content, just with author names stripped, not a clean "no
+identity, no board" floor. Ran the same test against C0 (true no-framing baseline),
+which was never part of the pre-registered family:
+
+    C5-C0  interaction: +0.96pp   p=0.898
+    C5-C1b interaction: +5.29pp   p=0.128  (already reported)
+
+Against the real null condition, bare identity does nothing. The raw "C5 is the
+corpus max" fact is what you'd expect from 9 similar point estimates at ~26% power
+(already documented) — some one of them lands on top by chance under a flat true
+null, and this time it was C5. Not evidence against the hypothesis; the C2-C3
+interaction remains the only contrast that's both pre-registered and significant.
+
+Added as a footnote next to the existing C5-C1b sentence in Result 3, explicit that
+it's exploratory and outside the pre-registered/Holm-corrected family. One reproducibility
+note for this file, not the write-up: re-running `interaction()` for C5-C0, then
+C5-C1b, then C2-C3 back-to-back in one ad hoc script reused the module-level RNG
+across all three calls, so the C2-C3 permutation p-value it produced (0.0442) differs
+slightly from the pipeline's own dedicated run (0.0408) — same point estimate
+(+5.77pp) exactly, Monte Carlo noise only, not a second disagreeing measurement of
+the primary result. The write-up still cites 0.0408, the correct dedicated-run value.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
