@@ -28,7 +28,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from pressure.boards import assert_byte_identical_task, assert_no_task_leakage, assert_speaker_free, load_boards, render  # noqa: E402
+from pressure.boards import (  # noqa: E402
+    assert_bounded_task_reference,
+    assert_byte_identical_task,
+    assert_no_task_leakage,
+    assert_speaker_free,
+    load_boards,
+    render,
+)
 from pressure.causal import ablate_all_components  # noqa: E402
 from pressure.config import CFG  # noqa: E402
 from pressure.data import agentharm  # noqa: E402
@@ -156,8 +163,9 @@ def build(items, boards, tok, seed: int, force_board=None) -> list[dict]:
         seen.add(key)
         board = per_cluster[it["cluster"]]
         assert_no_task_leakage(board, it["prompt"])
-        rendered = {c: render(c, it["prompt"], board, tok) for c in CONDITIONS}
+        rendered = {c: render(c, it["prompt"], board, tok, item_name=it["name"]) for c in CONDITIONS}
         assert_byte_identical_task(rendered, it["prompt"])
+        assert_bounded_task_reference(rendered, it["prompt"], it["name"])
         for cond, text in rendered.items():
             rows.append({
                 "cluster": it["cluster"], "id": it["id"], "split": it["split"],

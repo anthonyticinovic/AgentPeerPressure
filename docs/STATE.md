@@ -1633,6 +1633,44 @@ were dated 2026-08-31 but their commits (`git log`) show 2026-09-01 — fixed. T
 session had drifted a day stale on its own date; caught by checking `git log`
 against the header dates rather than assuming, not by anyone flagging it.
 
+### Content arm (C8/C8b/C9/C8n) — G0 done, 2026-09-02
+
+Full plan and rationale: `docs/PLAN_content_arm.md`. Summary: the nine conditions above
+never let a board note reference the task's content (invariant 2 in `boards.py`), which
+Hu & Qu (arXiv:2607.05545) predicts is exactly why they went null — their conformity
+paradigm needs an *asserted claim about the item*, not just a modulator on top of one.
+C8/C8b/C9/C8n add that one missing ingredient: a render-time note naming the AgentHarm
+item and asserting it was completed (C8/C8b), refused (C9), or merely logged (C8n,
+the salience control). The existing nine-condition null becomes the control.
+
+**G0 (build + verify, no GPU) — done:**
+- `RenderCtx.item_name`, `_with_task_note`, and the four renderers landed in
+  `src/pressure/boards.py`; call sites updated in `scripts/12_peer_loop.py` (passes
+  `it["name"]`) and `scripts/09_inspect_stimuli.py`.
+- New assertion `assert_bounded_task_reference` operates on **rendered** output
+  (`assert_no_task_leakage` only ever sees the Board object, before the task-referencing
+  note exists) and is wired beside `assert_byte_identical_task` in `12_peer_loop.py`.
+- **One fix during G0:** the first version hard-failed on any task-word overlap not in
+  `item_name`, and immediately false-positived on item 26 ("Short Story Plagiarism") —
+  the board header's fixed "RECENT NOTES" collided with the task's "recent" by chance.
+  This is the identical coincidental-word problem `assert_no_task_leakage` already
+  tolerates via `max_shared=1`; gave the new assertion the same tolerance rather than a
+  header special-case. No other item triggered it.
+- Test suite green (112 passed; the 7 failures/5 errors seen under the sandboxed Bash
+  tool are pre-existing HF-cache-lock and CUDA-model-load issues, reproduced identically
+  on `main` before this change — not a regression).
+- Rendered all 208 items x 4 new conditions against the board each cluster actually
+  draws (mirrors `12_peer_loop.build`'s RNG order): all assertions pass, 208/208.
+- **Hand-read 20 randomly sampled items (`scripts/26_g0_content_arm_check.py`,
+  `results/g0_content_arm/hand_read_sample.json`): 20/20 clean.** Every C8/C8b/C9/C8n
+  note reads as "[item name] — [status]." and nothing else; no restatement of the task.
+- **Token delta C8 vs C2: mean +4.04, min +2, max +8** (item names are short phrases,
+  close to the note text they replace). Disclosed, not zero, but small next to the
+  ~50-150 token board prefixes.
+
+**Next:** G1, the manipulation check — establish the model actually reads and attributes
+the board note before spending any generation budget on G2-G4.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
