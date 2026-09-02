@@ -1766,6 +1766,41 @@ held constant the way C1 is length-matched to C2.
 **Next: G2, the 52-item pilot**, per `docs/PLAN_content_arm.md` §5. Sbatch drafted at
 `hpc/g2_content_pilot.sbatch`.
 
+**G1 number corrected: cite ~70% (146/208), not the raw 63.5%.** The other session
+(agentpeerpressure-ad, see its C10/C11 entry below) found and fixed a real bug in
+`scripts/28_g1_grade.py`'s NEGATIONS check (missed a negated "completed"/"addressed"
+when a word sits between them, e.g. "has NOT BEEN completed") — commit 37fe8e8. That
+fix does not move this session's 132/208 (confirmed: re-ran after pulling it, same
+132/208, 63.5%). But the opposite-direction bug this session already found by hand
+(a correct attribution with an unrelated later-step hedge scored FAIL) is real and
+was deliberately left unfixed as too easy to overcorrect via regex; the other
+session's own hand-audit of this same data landed on ~70%/146. Cite the hand-audited
+number in anything write-up-facing, not the raw keyword percentage.
+
+**Discovered mid-G2: a second session (agentpeerpressure-ad) is running C10/C11 on
+the same repo, and we collided on the shared Spartan directory.** Found via
+`ListAgents` after a system reminder flagged `28_g1_grade.py` changing on disk that I
+hadn't touched. G2's pilot job (29886095, `hpc/g2_content_pilot.sbatch`, shared
+default dir) had been running fine — preflight passed, generating at ~80-160s/item —
+when it hit `PREEMPTED` at row ~60/208 after 1h09m. `sacct` shows no auto-requeue
+despite `--requeue` in the sbatch; **`gpu-l40s-preempt`'s site `PreemptMode` is very
+likely `CANCEL`, not `REQUEUE`** — the job-level flag can't override a partition
+policy. Resubmit the identical command by hand; `12_peer_loop.py`'s per-row
+checkpoint-and-skip already makes that safe, no code fix needed. (Separately, this
+preemption looks like ordinary cluster contention, not caused by the other session —
+their jobs ran on their own isolated directory throughout.)
+
+Followed the other session's already-published fix rather than rediscovering it:
+moved to a dedicated `/data/gpfs/projects/COMP90055/aticinovic/AgentPeerPressure-c8c9`
+(git_sha `0be2e05` at sync time — includes their C10/C11 commits, but they touch
+neither `boards.py` nor `12_peer_loop.py`, confirmed with `git log --name-only`, so
+nothing of this session's own code path is affected). Partial checkpoint
+(`results/content_arm_pilot_base.json`, ~60/208 rows, 1.5MB) fetched to the laptop
+first as a safety copy, then copied into the new directory so the resubmit resumes
+rather than restarts. Coordinated by direct message (`SendMessage`/`ListAgents` — the
+harness supports messaging concurrent local sessions); the other session confirmed
+it is fully off the shared directory and the checkpoint file is untouched.
+
 ### C10/C11 (saturated dose variant) — parked pending the G1 retry, 2026-09-02
 
 A second, independent session was running a deconflicted follow-on to C8/C9 —
