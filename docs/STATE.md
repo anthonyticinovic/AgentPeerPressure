@@ -1809,6 +1809,102 @@ rather than restarts. Coordinated by direct message (`SendMessage`/`ListAgents` 
 harness supports messaging concurrent local sessions); the other session confirmed
 it is fully off the shared directory and the checkpoint file is untouched.
 
+### G2 pilot result, adversarial review, and G3/G4 submitted — 2026-09-02
+
+Job 29891619 (dedicated `-c8c9` directory, resumed after one preemption via the
+hardened watcher below): 208/208 rows, 52 items x {C8,C8b,C9,C8n}, base arm,
+`--monitor`. Regraded (`15_regrade.py`, DeepSeek key authorised above): 23/208
+verdicts changed vs. structural-only, 1 row unscored (reported, not pooled).
+
+**Watcher hardened before trusting it overnight.** The first version's wait loop
+(`ssh ... squeue ... | grep -q`) treated a single dropped SSH connection as "job left
+the queue," and if `sacct` still correctly said `RUNNING` at that instant it hit an
+unhandled branch and **exited the whole watcher**, silently abandoning a healthy job
+— exactly the failure mode that would waste an unattended run. Rewrote to require
+two consecutive confirmed-empty `squeue` checks (never on an SSH failure) before
+concluding a job ended, and to resume watching rather than resubmit when `sacct`
+still reports a non-terminal state. `/tmp/watch_job.sh` (not in the repo — throwaway
+infra, the pattern is what matters, reproduce from this description if needed
+again).
+
+**Pre-registered analysis (`29_content_arm_analysis.py`), run as pre-registered:**
+primary C8-C9 (base arm) **+9.6pp, b=6 c=1, p=0.125, n_informative=7/52,
+`floor_pinned: true`** (below the 15-item trust threshold — stated with the number,
+not after it). Secondary (Holm, 3 tests): C8-C8b (H6, speaker increment) +1.9pp
+p_holm=1.0; C8-C2 (content increment, named speaker) +11.5pp p_holm=0.328; C8b-C1b
+(content increment, speaker-free) +5.8pp p_holm=0.906.
+
+**Adversarial review (Opus, cold subagent, no access to this session's reasoning)
+before deciding on G3/G4.** Full report kept in this session's transcript; summary:
+
+- Reproduced every number independently from a clean shell — exact match.
+- Hand-read the 7 informative pairs' transcripts (all 5 C9 refusals in full, 3 of 5
+  quoting the board note verbatim in their own reasoning before declining; 3 C8
+  tool chains). **Not** the retracted PARTIAL/`any_call` bookkeeping pattern:
+  restricting to items where `cut_mid_call` and turn-cap are absent on both sides
+  leaves n=47, b=5, c=1 — the effect survives. One genuine reversal (News
+  Plagiarism, one rubric criterion differing on otherwise-identical 7-call
+  behaviour) — not cherry-picked.
+- Board/condition assignment clean: 0 items with more than one board id across the
+  4 conditions; `item_reference` byte-identical across C8/C8b/C9/C8n on 52/52 items
+  (the repetition term genuinely cancels in the paired primary).
+- **Real bug: `assert_speaker_free` never sees C8b's render-time note** — fixed,
+  see the commit above this entry (`speaker_pronoun_warnings`, warn not fail; the
+  19/52 hits are the task's own address form, not a peer voice, hand-verified).
+  No effect on the primary.
+- **Real confound: pilot ran at `--max-new-tokens 768`, the cross-file secondary
+  contrasts' source (`gate_a_full_base_judged.json`) at 1536** (some rows 8192).
+  `cut_mid_call` 0/52 on C2 and C1b vs. 3/52 and 2/52 on C8 and C8b on the same
+  items — direct evidence it bites, conservative direction (the +11.5pp is
+  observed *despite* the handicap). **G3/G4 run at 1536** to close this.
+- `p_cluster_exact == p_item_exact` to the digit at pilot scale is expected, not a
+  bug: `--one-per-grader` gives exactly one item per cluster, so the cluster test
+  degenerates to the item test. Will differ at 208 items (multiple items/cluster).
+- The pilot is 52/52 variant-1 (`hint_included` and `detailed_prompt` both true) —
+  `12_peer_loop.py`'s own docstring warns `--one-per-grader` is "the hottest cell."
+  Projecting with gate_a's own variant-1-vs-other informative-rate ratio (0.58)
+  gives ~19 informative C8-C9 pairs at n=208 (clears the 15-item floor), and if the
+  6:1 split holds, p≈0.004; even a much weaker-than-projected split still clears
+  significance. This is why G3/G4 were submitted despite `floor_pinned: true` at
+  pilot scale — pre-registering the expectation here, before the full result, per
+  PLAN §6.
+- **Ran three exploratory contrasts to separate the peer-endorsement mechanism from
+  in-context repetition of the restated content** (the honest worry `item_reference`
+  raises: the note now restates most of the operative instruction, mean +29.9
+  tokens vs C2 — see the earlier entry). On these same 52 items: **C8n-C6 (verbatim
+  restatement, no valence, on the same audit board C6 already uses) is flat, +1.9pp
+  p=1.0** — repetition alone moves nothing. **C8-C8n (valence added) +7.7pp.**
+  **(C8-C9) − (C2-C3) matched-item difference-in-differences = +17.3pp, sign test
+  p=0.0156** — the content-bearing valence flip moves markedly more than the
+  content-free one on the identical items. Added to `29_content_arm_analysis.py` as
+  a labelled, non-Holm-corrected exploratory family, committed before G3/G4 output
+  lands (so pre-registered relative to the full-scale data, not the original
+  design).
+- `belief()` had dead code and reported an untested mean; fixed with a proper
+  comply-and-flagged cross-tab and an exact sign test on the per-item
+  `p_harm_orth` delta. Result: **comply-and-flagged is 0/52 in both C8 and C9** at
+  `tau_harm_orth = 0.5843` (compilers don't register above-threshold harm-belief,
+  consistent with the project's standing probe/action decoupling finding) — but
+  **the sign of the delta is systematic: 40/52 negative, 12/52 positive, exact sign
+  test p = 0.000128.** C9 (refused) reads a slightly but very consistently higher
+  `p_harm_orth` than C8 (endorsed), even though the mean gap is tiny (-0.064 on a
+  ~-3.1 scale) and never crosses into changing classified behaviour. Report both
+  facts together — "barely differs" was the wrong read of an untested mean.
+
+**Verdict: PROCEED WITH CAVEATS, all applied before submission** — pronoun warning
+(commit above), 1536 tokens, exploratory family committed, belief() fixed, sha256
+stamping added (`13_loop_analysis.py`'s convention, closes a gap the review named).
+
+**G3 (base, job 29906798) and G4 (ablated, job 29906800) submitted in parallel**,
+`hpc/g3_content_full_base.sbatch` / `hpc/g4_content_full_abl.sbatch`, 208 items x 4
+conditions each, `--monitor --max-new-tokens 1536`, dedicated `-c8c9` directory.
+**Partition `gpu-a100-preempt`, not `gpu-l40s-preempt`**: a fresh `--test-only`
+sweep after G2 showed `gpu-l40s-preempt` had degraded to a next-day estimate —
+traced to the other session's own `pilot_c13c14` job queued there under our shared
+Spartan account, competing for the same fair-share priority. Told them; suggested
+each session pick a different partition going forward. Each job has its own
+hardened watcher instance.
+
 ### C10/C11 (saturated dose variant) — parked pending the G1 retry, 2026-09-02
 
 A second, independent session was running a deconflicted follow-on to C8/C9 —
