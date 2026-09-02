@@ -36,6 +36,7 @@ from pressure.boards import (  # noqa: E402
     item_reference,
     load_boards,
     render,
+    speaker_pronoun_warnings,
 )
 from pressure.causal import ablate_all_components  # noqa: E402
 from pressure.config import CFG  # noqa: E402
@@ -157,6 +158,7 @@ def build(items, boards, tok, seed: int, force_board=None) -> list[dict]:
     else:
         per_cluster = {c: rng.choice(boards) for c in sorted({i["cluster"] for i in items})}
     rows, seen = [], set()
+    pronoun_items = []
     for it in items:
         key = (it["cluster"], it["id"])
         if key in seen:
@@ -168,6 +170,9 @@ def build(items, boards, tok, seed: int, force_board=None) -> list[dict]:
         rendered = {c: render(c, it["prompt"], board, tok, item_name=ref) for c in CONDITIONS}
         assert_byte_identical_task(rendered, it["prompt"])
         assert_bounded_task_reference(rendered, it["prompt"], ref)
+        has_pronoun = bool(speaker_pronoun_warnings(ref)) if "C8b" in rendered else False
+        if has_pronoun:
+            pronoun_items.append(it["id"])
         for cond, text in rendered.items():
             rows.append({
                 "cluster": it["cluster"], "id": it["id"], "split": it["split"],
@@ -176,7 +181,12 @@ def build(items, boards, tok, seed: int, force_board=None) -> list[dict]:
                 "target_functions": it["target_functions"],
                 "hint_included": it["hint_included"], "detailed_prompt": it["detailed_prompt"],
                 "board": board.id, "condition": cond, "task": it["prompt"], "user_text": text,
+                "referent_has_pronoun": has_pronoun,
             })
+    if pronoun_items:
+        print(f"speaker_pronoun_warnings: {len(pronoun_items)}/{len({r['id'] for r in rows})} items' "
+              f"C8b referent echoes the task's own pronoun (not a peer-voice leak -- see "
+              f"boards.speaker_pronoun_warnings docstring): {pronoun_items}")
     return rows
 
 

@@ -30,7 +30,11 @@ Design invariants, all asserted in code:
    confounded with it.
 4. Note text carries no personal pronouns. Dropping the author label must actually
    remove the speaker: "cleared this one myself" would keep one, which would
-   silently contaminate the speaker-free floor.
+   silently contaminate the speaker-free floor. For C8b, this is checked as a
+   warning, not a hard-fail: `item_reference`'s verbatim task-sentence snippet
+   can echo the task's own second/first-person address ("you have access
+   to...", "i want to smuggle..."), which reveals nothing about a peer's
+   voice. See `speaker_pronoun_warnings`.
 
 Conditions are a registry, not a chain of branches, so the planned agent-to-agent
 arm is added by registering one more function.
@@ -370,11 +374,42 @@ def assert_speaker_free(board: Board) -> None:
 
     C1b removes the author label. If the text still says "we" or "myself" the
     speaker survives the strip and the floor is no longer speaker-free.
+
+    Runs on the Board object, before render, so it cannot see C8b's
+    generated note (`_with_task_note`) at all -- see `speaker_pronoun_warnings`
+    for that one, which is a warning, not a hard-fail, and for a load-bearing
+    reason.
     """
     for variant in VARIANTS:
         for note in board.notes(variant):
             if _PRONOUN.search(note.text):
                 raise AssertionError(f"{board.id}/{variant} note {note.ref} contains a pronoun: {note.text!r}")
+
+
+def speaker_pronoun_warnings(item_name: str) -> list[str]:
+    """Report (never fail) personal pronouns in the referent used by C8b.
+
+    Every other part of C8b's rendered text is either the hardcoded,
+    pronoun-free `_task_note_text` wrapper or the board's own static notes
+    (already covered by `assert_speaker_free`), so `item_name` is the only
+    place a pronoun could enter.
+
+    Found by adversarial review, 2026-09-02: `assert_speaker_free` never sees
+    C8b's generated note, and on 19/52 pilot items it would have fired --
+    `item_reference`'s verbatim task-sentence snippet inherits the task's own
+    phrasing, and AgentHarm tasks address the agent in second person ("you
+    have access to...") or the requester speaks in first ("i want to smuggle
+    cocaine..."). Hand-read confirms every hit is the task's own address form,
+    not the peer note asserting its own voice -- invariant 4's actual concern
+    ("cleared this one myself" revealing an author) does not apply to a
+    quoted instruction. Stripping or rewriting those pronouns would make
+    `item_name` differ between C8b and C8/C9/C8n, breaking the
+    byte-identical-referent property the primary contrast's clean
+    cancellation depends on (verified 52/52 in the pilot). So: warn, don't
+    fix, don't fail -- and don't touch the referent.
+    """
+    hits = [w for w in _PRONOUN.findall(item_name)]
+    return [f"{item_name!r} contains pronoun(s) {hits}"] if hits else []
 
 
 def _n_tokens(text: str, tok) -> int:

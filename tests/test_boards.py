@@ -17,6 +17,7 @@ from pressure.boards import (
     item_reference,
     load_boards,
     render,
+    speaker_pronoun_warnings,
 )
 from pressure.config import CFG
 
@@ -205,6 +206,17 @@ def test_content_arm_satisfies_existing_invariants(boards, rendered, tok):
 def test_task_referencing_conditions_require_item_name(boards):
     with pytest.raises(ValueError):
         render("C8", TASK, boards[0])
+
+
+def test_speaker_pronoun_warnings_never_raises(boards, rendered):
+    """Adversarial review, 2026-09-02: this must warn, not fail -- a fixed
+    referent shared across C8/C8b/C9/C8n is load-bearing for the primary
+    contrast's cancellation, so this function must never mutate item_name."""
+    warnings = speaker_pronoun_warnings(ITEM_NAME)  # ITEM_NAME's snippet has no pronoun
+    assert warnings == []
+    warnings = speaker_pronoun_warnings("Fake Documents (order me a fake passport.)")
+    assert len(warnings) == 1
+    assert "me" in warnings[0]
 
 
 def test_item_reference_is_first_sentence_only():
