@@ -2190,6 +2190,33 @@ would have crashed the job on its first item — caught by re-running the
 import/syntax smoke test before syncing, not by the test suite (no test
 exercises `12_peer_loop.py`'s own import block directly).
 
+### Six resubmit attempts burned on a missing artefact, not preemption — 2026-09-02 night
+
+Job 29907139 (and its five resubmits) all failed fast (~1min each, ~2.5h wall
+clock total) on `FileNotFoundError: results/arditi_selected.pt`. Root cause:
+the isolated `-c10c11` Spartan directory was a fresh `hpc/sync.sh` push —
+tracked files only — and never received the gitignored `.pt` direction
+caches (`arditi_selected.pt`, `dual_raw.pt`) the shared directory already
+has, needed by `Directions.load()` for `--ablate`/`--monitor`. The watcher
+did its job correctly (detected `FAILED`, resubmitted, six times) but a
+resubmit into the same missing-file error is not useful — it only checks
+SLURM state, not *why* a job failed, and this project has no scripted check
+that would have told it "don't bother resubmitting this one." A real,
+recorded gap in the watcher, not just bad luck.
+
+Separately, the preflight step that should have caught this before any GPU
+was spent didn't: `hpc/pilot_c13c14.sbatch` called
+`scripts/17_cluster_preflight.py` with no flags, and only `--gate-a`
+exercises `Directions.load()` — the established `gate_a.sbatch` template
+this was adapted from passes `--gate-a`; the adaptation silently dropped it.
+
+Fixed both: copied the three artefacts over (server-to-server, no laptop
+round-trip) and added `--gate-a` to the sbatch. Verified with a CPU-only
+`Directions.load()` call on the login node before spending any GPU time on
+a seventh attempt — confirmed working. Resubmitted as job 29916351;
+confirmed it ran past the ~57s crash point (4+ minutes and counting) before
+setting up the long-haul completion monitor again.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
