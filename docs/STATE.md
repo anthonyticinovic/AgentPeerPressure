@@ -1799,6 +1799,37 @@ variant through the same manipulation check next — cheap (~7 min GPU,
 mirroring G1's job 29883224) — before any full-corpus generation. If it
 fails, C10/C11 stop here with no further spend, alongside C8/C8b/C9/C8n.
 
+**Update — referent fix passed (63.5%, job 29885423), C10 checked, and a
+shared-Spartan-directory race caught and fixed.** The single-mention retry
+passed decisively (see the other session's own entry above this one for the
+full number and hand-read). C10's saturated check was run next, and hit
+exactly the race `docs/PLAN_C10_C11.md` §6 had warned about in the abstract:
+this session synced its worktree branch onto the *same* Spartan directory the
+other session uses (`/data/gpfs/projects/COMP90055/aticinovic/AgentPeerPressure`,
+reasoning at the time that a purely-additive `boards.py` change was low-risk to
+share) and submitted job 29885871. Before it ran, the other session's own
+`hpc/sync.sh` — from their checkout, unaware of this session's push — overwrote
+the directory again, since Spartan has no `.git` there and `sync.sh` is a flat
+rsync mirror of whatever was `git ls-files`-tracked in whichever checkout ran
+it last, not a merge. Job 29885871 failed fast on `unrecognized arguments:
+--condition C10` (the flag this session's branch had added was gone) —
+cheap, wall-clock only, no GPU time actually spent, but a real collision, not
+a hypothetical one.
+
+**Fix: a fully separate project directory**,
+`/data/gpfs/projects/COMP90055/aticinovic/AgentPeerPressure-c10c11`, holding
+this branch only. `HF_HOME` and the `uv` package/Python caches are set from
+`PRESSURE_BASE` (`hpc/cluster_env.sh`), not `PRESSURE_PROJECT_DIR`, so a second
+directory reuses the already-downloaded 9B weights and cached wheels rather
+than re-fetching either — `setup_env.sh` there took under two minutes.
+`PRESSURE_VENV` *is* derived from `PRESSURE_PROJECT_DIR`, so each project
+directory still needs (and gets) its own venv. Job 29886358 resubmitted there
+with `--export=ALL,PRESSURE_PROJECT_DIR=...-c10c11`; result logged wherever
+this entry is next updated, or below it if this session adds another.
+**Any future concurrent-session work on this project should get its own
+`PRESSURE_PROJECT_DIR` from the start** — the shared directory is fine for
+sequential work by one session at a time, not two sessions in parallel.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
