@@ -1931,6 +1931,23 @@ single-turn check before Gate 1, same as the checks already done. Awaiting
 Anthony's call on whether to run that, proceed straight to Gate 1 on the
 descriptive numbers, or something else.
 
+**Anthony approved the disentangling round — GPU time is not the binding
+constraint (2 days before write-up).** Built C12 (same-source repeat: C10
+with every note collapsed to one author, isolating distinct-source consensus
+from mere repetition) and C13 (board reduced to one note: C8 with the filler
+notes deleted rather than kept, isolating noise-presence from mention count).
+Adversarial-reviewed the *design* before generating anything — verdict: sound
+as minimal pairs, not fatal, but (1) C12 may read as "obviously duplicated log
+line" rather than "one voice repeating," which needs its own hand-audit
+bucket, not just PASS/FAIL, and (2) the two factors are never crossed, so the
+result can show "neither alone reproduces C10" but not cleanly attribute the
+effect to source-count as a pure main effect — that needs a fifth interaction
+cell (distinct sources on 2-of-4 notes, real filler on the rest) if ever
+pursued further. Full review in `docs/PLAN_C10_C11.md`. Jobs 29897035 (C12)
+/ 29897037 (C13) submitted to the isolated `-c10c11` directory; results to
+follow, with the same hand-audit discipline as C8/C10 before either number is
+cited.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
