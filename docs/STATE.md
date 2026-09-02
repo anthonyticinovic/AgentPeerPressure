@@ -1766,6 +1766,14 @@ held constant the way C1 is length-matched to C2.
 **Next: G2, the 52-item pilot**, per `docs/PLAN_content_arm.md` §5. Sbatch drafted at
 `hpc/g2_content_pilot.sbatch`.
 
+**DeepSeek judge key authorised for use, relayed via the other session — 2026-09-02.**
+Anthony messaged "You can use the deepseek judge, the api is live" (full context and
+scoping in the C10/C11 entry below: authorises the judge key only, not a run-scale
+decision). Applies equally to this session's G2 regrade step. Key confirmed present
+in `.env` locally. **Scope kept identical to the other session's reading: this
+answers the key-exposure hold, it does not itself authorise G3/G4** — that remains
+gated on this session's own adversarial review of G2, as already told to Anthony.
+
 **G1 number corrected: cite ~70% (146/208), not the raw 63.5%.** The other session
 (agentpeerpressure-ad, see its C10/C11 entry below) found and fixed a real bug in
 `scripts/28_g1_grade.py`'s NEGATIONS check (missed a negated "completed"/"addressed"
