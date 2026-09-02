@@ -2247,6 +2247,74 @@ any future isolated Spartan/worktree setup: `.env`, `results/*.pt`
 `git diff` against main's tracked files before trusting a worktree's first run
 of anything.
 
+### Gate 1 pilot result: C13-C14 noise-removal test — flat null, badly underpowered at pilot scale — 2026-09-03
+
+Both arms judge-graded clean after the `.env` fix (base: 71 real judge calls,
+17/208 verdicts changed vs. structural-only, 3 unscored; ablated: 113 calls,
+41/208 changed, 5 unscored — all `unscored_criteria` reported separately, not
+pooled as failures, per standing rule). Ran `32_c13c14_interaction.py` and
+`33_c13c14_power.py` exactly as pre-registered, no new statistics.
+
+**Raw compliance rates, 52 items:**
+
+| | C8 | C9 | C13 | C14 |
+|---|---|---|---|---|
+| base | 25.0% | 17.3% | 26.9% | 23.1% |
+| ablated | 46.2% | 40.4% | 48.1% | 44.2% |
+
+**Primary: C13-C14 interaction = +0.00pp, p = 1.0000.** A genuine flat null,
+not a rounding artefact — the endorsed-refused gap is +3.8pp in the base arm
+and +3.9pp ablated, i.e. essentially identical, so the interaction (the
+*change* in that gap) lands on exactly zero. **Comparison point (descriptive
+only, per the pre-registration): C8-C9 interaction = -1.92pp, p = 1.0000** —
+also flat, also null, same order of magnitude as C13-C14. The two are not
+distinguishable from each other or from zero at this sample size.
+
+**Power (n=52, pilot scale): 4.0% at 0pp (calibration, correct), 9.2% at
+5pp, 29.0% at 10pp, 68.9% at 15pp, not assessable beyond ~19pp (this pilot's
+own discordance ceiling).** This null is not informative on its own — at the
+effect size that would make C13-C14 a headline result (comparable to the
+demoted C2-C3's +5.77pp, or larger), this pilot has under 10% power to have
+detected it. A flat 0.00pp point estimate is *consistent with* no real
+effect, but the pilot cannot distinguish that from a real effect this small
+a sample simply can't see.
+
+**Secondary (exploratory, within-arm, Holm-correct together)**: none
+significant — C13 vs C8 base p=1.00, C14 vs C9 base p=0.375, C13 vs C8
+ablated p=1.00, C14 vs C9 ablated p=0.6875. Discordant-pair counts are all
+single digits (1-4 out of 52), consistent with the power table above rather
+than with a real effect being missed by the correction.
+
+**Gate 1 pass criteria — all four met:**
+1. C8/C9 base-arm heuristic rates (17.3%/11.5%) land in the same range as the
+   other session's independently-generated pilot (21.2%/17.3%) — close, not
+   identical, consistent with ordinary cross-run decoding variance rather
+   than a design or pipeline defect.
+2. Rendered C13/C14 stimuli hand-read for 5 items across categories (SSH
+   misuse, pornographic story, YouTube copyright, cybercrime, harassment) —
+   read exactly as intended, single referent-bearing note, no other content.
+3. `n_turns`/max-turns-hit distributions comparable across C8-vs-C13 and
+   C9-vs-C14 in both arms (mean `n_turns` within ~0.5 turns, max-turns-hit
+   2-4/52 everywhere) — no context-budget artefact from the shorter board.
+4. Zero `grade_error` in both arms after regrading; zero remaining
+   `judge_error`. No malformed tool-call blocks.
+
+**Hand-checked 3 full transcripts** (not just verdicts): a judge-corrected
+news-plagiarism compliance (coherent multi-platform posting sequence, the
+judge's PASS looks right, not a hallucination); a discordant C13/C14 pair on
+a cybercrime item (one instance completed the task before hitting
+`max_turns`, the paired one got stuck troubleshooting and didn't — a
+plausible small-N divergence, not a grading bug).
+
+**Where this leaves the decision Anthony is waking up to**: the pilot is
+mechanically clean (all four gates pass) and the primary result is a flat,
+uninterpretable null purely because n=52 lacks the power to see anything at
+the effect sizes this project's other primaries have shown. Gate 2 (the
+full 208-item run, ~11 GPU-hours) is the only way to get a result with real
+power behind it — that commitment was never authorised by this
+pre-registration and still isn't; this is the actual go/no-go decision
+waiting for him, not a result to react to.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
