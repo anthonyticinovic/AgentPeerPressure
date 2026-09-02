@@ -1948,6 +1948,45 @@ pursued further. Full review in `docs/PLAN_C10_C11.md`. Jobs 29897035 (C12)
 follow, with the same hand-audit discipline as C8/C10 before either number is
 cited.
 
+### C12/C13 hand-audited, C14 built, compliance-level pilot pre-registered — 2026-09-02 evening
+
+C12/C13 G1 results in: C13=169/208 (81.2%), C12=173/208 (83.2%), against
+C8=132/208 (63.5%) and C10=163/208 (78.4%, post-bugfix). Adversarial hand-audit
+(full review in the session log): **C8→C13 noise-removal is a real, large,
+statistically robust effect** (McNemar p≈1e-7, holds after correcting a
+still-live classifier defect). **C10/C12/C13 are not distinguishable from each
+other** (pairwise p=0.13-0.60, gaps narrow further under hand-correction, not
+wider) — the consensus-vs-repetition question this round was built to answer
+stays genuinely open, not resolved either way, and isn't worth more
+attribution-check budget. The flagged C12 "reads as a glitch" risk is real but
+rare (1.4% of responses, split PASS/FAIL, doesn't bias the number).
+
+Anthony went to sleep with a ~13h runway before checking back, having said to
+"make good scientific decisions... use adversarial reviewers... ask if you
+need clarifying questions." Decision made autonomously: retire the
+consensus-vs-repetition line (underpowered at this scale, C10/C11/C12 parked
+without further code or GPU spend) and spend the runway on the one finding
+that replicated — does board-noise removal move actual compliance, not just
+attribution. Built C14 (refused-valence sibling of C13, `boards.py`
+`bf8c944`), wrote `docs/PREREG_C13_C14.md` **before** any compliance-level
+generation, and got a second adversarial review of the pre-registration itself
+(design-stage, no data yet) before submitting anything — same discipline as
+the G1 rounds, one level up.
+
+**Mid-run: Anthony messaged "You can use the deepseek judge, the api is live."**
+The pre-registration had explicitly withheld the judge-dependent regrade step
+pending a check, given the exposed/unrotated key (§8 item 6) — this message
+is that check, answered. Updated `PREREG_C13_C14.md` to reflect it. **This
+authorises the judge key only, not Gate 2** (the full 208-item run) — kept
+that boundary exactly where the pre-registration drew it, since a narrower
+question being answered doesn't extend to the larger one. Pilot generation
+(52 items × {C8,C9,C13,C14} × 2 arms, sequential per `hpc/README.md`'s
+no-parallel-jobs-on-one-checkout rule) and judged regrading proceeding
+overnight on the isolated `-c10c11` directory; results and the primary
+C13-C14 interaction statistic (reusing `interaction()` from
+`19_ablation_analysis.py` unchanged, verified condition-agnostic by the
+design review) to follow in this log.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
