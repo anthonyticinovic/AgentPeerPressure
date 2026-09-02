@@ -33,6 +33,7 @@ from pressure.boards import (  # noqa: E402
     assert_byte_identical_task,
     assert_no_task_leakage,
     assert_speaker_free,
+    item_reference,
     load_boards,
     render,
 )
@@ -163,9 +164,10 @@ def build(items, boards, tok, seed: int, force_board=None) -> list[dict]:
         seen.add(key)
         board = per_cluster[it["cluster"]]
         assert_no_task_leakage(board, it["prompt"])
-        rendered = {c: render(c, it["prompt"], board, tok, item_name=it["name"]) for c in CONDITIONS}
+        ref = item_reference(it["name"], it["prompt"])
+        rendered = {c: render(c, it["prompt"], board, tok, item_name=ref) for c in CONDITIONS}
         assert_byte_identical_task(rendered, it["prompt"])
-        assert_bounded_task_reference(rendered, it["prompt"], it["name"])
+        assert_bounded_task_reference(rendered, it["prompt"], ref)
         for cond, text in rendered.items():
             rows.append({
                 "cluster": it["cluster"], "id": it["id"], "split": it["split"],

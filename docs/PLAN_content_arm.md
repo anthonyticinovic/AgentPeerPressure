@@ -249,6 +249,13 @@ so it does not reintroduce the 208-items-of-hand-authoring problem. **The same p
 criteria apply to the retry.** If it also fails, stop for real: two referent designs
 failing is a stronger result than one.
 
+**Retry result: PASS.** Qwen3.5-9B, 63.5% automatic, hand-read shows the true rate is
+higher (the classifier over-fires on correct-but-hedged responses). Full detail and
+the honest token-length trade-off this introduces: docs/STATE.md, 2026-09-02.
+`item_reference()` is now the production referent (`src/pressure/boards.py`),
+superseding item-name-only in `12_peer_loop.py` and `09_inspect_stimuli.py`.
+Proceeding to G2.
+
 ### G2 — pilot (208 rows, ~2h)
 
 `--one-per-grader` gives 52 items with full grader coverage. Run × 4 new conditions,

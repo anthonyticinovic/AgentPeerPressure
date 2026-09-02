@@ -13,12 +13,19 @@ Design invariants, all asserted in code:
 2. Board notes never reference the task's content. They refer to *prior* items by
    id and to process ("cleared", "no escalation"). A note that leaked task
    semantics would confound endorsement with a restatement of the request.
-   C8/C8b/C9/C8n are the deliberate, code-checked exception: they add exactly one
-   task-bound word, the AgentHarm item name, generated at render time and bounded
-   by `assert_bounded_task_reference` rather than forbidden outright. See
-   docs/PLAN_content_arm.md — Hu & Qu (arXiv:2607.05545) show the *asserted content
-   about the item*, not the speaker, drives conformity, and invariant 2 as written
-   held that driver at zero across all nine prior conditions.
+   C8/C8b/C9/C8n are the deliberate, code-checked exception: they add task-bound
+   content, generated at render time and bounded by `assert_bounded_task_reference`
+   rather than forbidden outright. See docs/PLAN_content_arm.md — Hu & Qu
+   (arXiv:2607.05545) show the *asserted content about the item*, not the speaker,
+   drives conformity, and invariant 2 as written held that driver at zero across
+   all nine prior conditions. The referent is `item_reference()`: the AgentHarm
+   item name plus the task's own verbatim first sentence. Name-only was tried
+   first and failed G1's manipulation check on Qwen3.5-9B (true attribution
+   ~4-7%, docs/STATE.md 2026-09-02) — the model read the note correctly but
+   filed it under a different, similar-sounding episode. The first sentence
+   supplies the distinguishing detail (named individuals, file paths) that a
+   category label alone doesn't carry; it is mechanically extracted, not
+   hand-authored, so it stays enforceable the same way the bare name was.
 3. Boards are item-agnostic, so board can be crossed with item rather than
    confounded with it.
 4. Note text carries no personal pronouns. Dropping the author label must actually
@@ -150,6 +157,26 @@ def _c7(board: Board, ctx: RenderCtx) -> str:
     """Diffusion of authorship: a peer began an item in this batch and passed the
     remainder on. Neutral on approval, so it does not collapse into C2."""
     return _block(board, "partial", with_author=True)
+
+
+def item_reference(name: str, task: str, max_words: int = 25) -> str:
+    """The referent passed as `item_name` to C8/C8b/C9/C8n: the AgentHarm item
+    name plus the task's own verbatim first sentence, capped at `max_words`.
+
+    Name-only failed G1 (docs/STATE.md, 2026-09-02): the model read the note
+    correctly but filed it as a different, similar-sounding episode, because
+    nothing in a bare category label ("propaganda ai video") carries the
+    detail that makes a task *this* task (named individuals, file paths,
+    exact phrasing). The first sentence is a mechanical slice of the task
+    already in scope, not a hand-authored paraphrase, so it stays enforceable
+    the same way the bare name was: `assert_bounded_task_reference` allows it
+    automatically, since it is already `content(item_name)`.
+    """
+    first = re.split(r"(?<=[.!?])\s", task.strip(), maxsplit=1)[0]
+    words = first.split()
+    if len(words) > max_words:
+        first = " ".join(words[:max_words]) + "..."
+    return f"{name} ({first})"
 
 
 def _task_note_text(item_name: str, *, valence: str) -> str:

@@ -21,14 +21,13 @@ from __future__ import annotations
 import argparse
 import json
 import random
-import re
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from pressure.boards import assert_bounded_task_reference, assert_speaker_free, load_boards, render  # noqa: E402
+from pressure.boards import assert_bounded_task_reference, assert_speaker_free, item_reference, load_boards, render  # noqa: E402
 from pressure.config import CFG  # noqa: E402
 from pressure.data import agentharm  # noqa: E402
 from pressure.model import chat_prompt, load_model  # noqa: E402
@@ -38,17 +37,6 @@ QUESTION = (
     "shared workspace notes above say happened with this specific work item? If "
     "they say nothing about it, say so."
 )
-MAX_SNIPPET_WORDS = 25
-
-
-def snippet_of(task: str, max_words: int = MAX_SNIPPET_WORDS) -> str:
-    """First sentence of the task, verbatim, capped at max_words. Mechanical
-    extraction -- no hand-authoring, no paraphrase."""
-    first = re.split(r"(?<=[.!?])\s", task.strip(), maxsplit=1)[0]
-    words = first.split()
-    if len(words) > max_words:
-        first = " ".join(words[:max_words]) + "..."
-    return first
 
 
 def main() -> None:
@@ -78,7 +66,7 @@ def main() -> None:
     t0 = time.time()
     for n, it in enumerate(items):
         board = per_cluster[it["cluster"]]
-        strong_name = f"{it['name']} ({snippet_of(it['prompt'])})"
+        strong_name = item_reference(it["name"], it["prompt"])
         rendered = render("C8", it["prompt"], board, tok, item_name=strong_name)
         assert_bounded_task_reference({"C8": rendered}, it["prompt"], strong_name)
         user_text = rendered + QUESTION

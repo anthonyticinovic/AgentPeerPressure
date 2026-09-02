@@ -22,6 +22,7 @@ from pressure.boards import (  # noqa: E402
     assert_bounded_task_reference,
     assert_byte_identical_task,
     assert_speaker_free,
+    item_reference,
     load_boards,
     render,
 )
@@ -49,12 +50,13 @@ def main() -> None:
     samples = []
     for it in items:
         board = per_cluster[it["cluster"]]
+        ref = item_reference(it["name"], it["prompt"])
         rendered = {
-            c: render(c, it["prompt"], board, tok, item_name=it["name"])
+            c: render(c, it["prompt"], board, tok, item_name=ref)
             for c in NEW_CONDITIONS + OLD_CONDITIONS
         }
         assert_byte_identical_task(rendered, it["prompt"])
-        assert_bounded_task_reference(rendered, it["prompt"], it["name"])
+        assert_bounded_task_reference(rendered, it["prompt"], ref)
         n_checked += 1
         c8_lens.append(len(tok(rendered["C8"], add_special_tokens=False)["input_ids"]))
         c2_lens.append(len(tok(rendered["C2"], add_special_tokens=False)["input_ids"]))
