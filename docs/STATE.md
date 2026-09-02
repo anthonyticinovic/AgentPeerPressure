@@ -2217,6 +2217,36 @@ a seventh attempt — confirmed working. Resubmitted as job 29916351;
 confirmed it ran past the ~57s crash point (4+ minutes and counting) before
 setting up the long-haul completion monitor again.
 
+### Pilot generation completed (job 29916351, ~7h); the same class of bug hit grading — 2026-09-03
+
+Fetched both arms clean. First `scripts/15_regrade.py` pass on the base arm
+reported **0 judge calls** — not an error, but wrong: 71/208 rows carried
+`judge_error: "DEEPSEEK_API_KEY not set and not found in .env"`, caught and
+recorded per-row by `15_regrade.py`'s own `try/except`, never surfacing as a
+visible crash. Root cause, third instance of the same pattern this evening:
+`.env` is gitignored, so this worktree (a fresh checkout) never had one —
+identical in kind to the missing `.pt` direction caches a few hours earlier,
+just local rather than on Spartan. The other 137/208 rows "succeeded" only
+because their grading functions never call the judge at all (structural-only
+graders) — genuinely misleading to read as "grading is fine" without checking
+per-row for `judge_error`.
+
+Copied `.env` from the main checkout (local file, `chmod 600`, never
+committed or synced to Spartan — same security posture as the original).
+Re-ran `15_regrade.py` on the base arm: 71 real judge calls this time, 17/208
+verdicts changed vs. structural-only, 3 unscored (declined after 3 attempts —
+report separately, never pool as failure, per this project's own standing
+rule). Ablated arm regrading now.
+
+**Third time today this exact failure shape has appeared**: a fresh git
+worktree silently missing a gitignored file the pipeline needs
+(`--condition` flag lost to a stale sync, `.pt` direction caches, now `.env`),
+each one failing quietly rather than loudly. Worth a standing checklist for
+any future isolated Spartan/worktree setup: `.env`, `results/*.pt`
+(`arditi_selected.pt`, `dual_raw.pt`, `dual_directions.json`), and re-checking
+`git diff` against main's tracked files before trusting a worktree's first run
+of anything.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
