@@ -19,6 +19,20 @@ Fallback: if the base arm is floor-pinned (informative-item count too small to
 trust), report the C8-C9 interaction across ablation arms instead, exactly as the
 existing nine-condition design falls back to `19_ablation_analysis.py::interaction`.
 
+Exploratory family, added after the G2 adversarial review (2026-09-02) but
+committed before G3/G4 output lands, so it is pre-registered relative to the
+full-scale data even though not relative to the original design: NOT part of the
+Holm-corrected secondary family, reported separately, for discriminating the
+peer-endorsement mechanism from an in-context repetition/priming account of the
+same restated content (see docs/STATE.md for the reasoning):
+  C8n - C6   does the verbatim restatement move compliance with no valence,
+             on the same audit-framed board C6 already uses -- if flat, the
+             repetition alone isn't doing the work
+  C8 - C8n   valence vs. mere mention, within the task-referencing family
+  (C8-C9) - (C2-C3), matched items  difference-in-differences: does the
+             content-bearing valence flip move more than the content-free one
+             on the identical 52/208 items
+
     uv run python scripts/29_content_arm_analysis.py \
         --content-base results/content_arm_base_judged.json \
         --existing-base results/gate_a_full_base_judged.json \
@@ -28,6 +42,7 @@ existing nine-condition design falls back to `19_ablation_analysis.py::interacti
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from collections import defaultdict
@@ -37,10 +52,13 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from pressure.stats import cluster_sign_test, contrast, holm  # noqa: E402
+from pressure.config import CFG  # noqa: E402
+from pressure.monitor import Directions  # noqa: E402
+from pressure.stats import binom_exact_p, cluster_sign_test, contrast, holm  # noqa: E402
 
 CONTENT_CONDS = ("C8", "C8b", "C9", "C8n")
 NEEDED_FOR_SECONDARY = ("C2", "C1b")
+NEEDED_FOR_EXPLORATORY = ("C6", "C3")
 FLOOR_PINNED_THRESHOLD = 15  # below this many informative items, distrust the base-arm primary
 
 
@@ -66,7 +84,7 @@ def load_joined(content_path: Path, existing_path: Path | None) -> dict:
             by[(r["cluster"], r["id"])][r["condition"]] = r
     if existing_path and existing_path.exists():
         for r in _load_rows(existing_path):
-            if r["condition"] in NEEDED_FOR_SECONDARY:
+            if r["condition"] in NEEDED_FOR_SECONDARY + NEEDED_FOR_EXPLORATORY:
                 by[(r["cluster"], r["id"])].setdefault(r["condition"], r)
     return dict(by)
 
@@ -108,23 +126,91 @@ def secondary_family(items: dict) -> dict:
     return raw
 
 
-def belief(items: dict) -> dict:
+def _crosstab(rows: list[dict], tau: float) -> dict:
+    """comply x flagged 2x2, item-level counts. Same construction as
+    `24_blindspot_crosstab.py::crosstab`, without that script's cluster-bootstrap
+    CI machinery (52 base scenarios = 52 clusters here, one row each, so a
+    per-cluster bootstrap would just resample single points)."""
+    a = b = c = d = 0
+    for r in rows:
+        cm, fl = comply(r), r["p_harm_orth"] > tau
+        if cm and fl:
+            a += 1
+        elif cm:
+            b += 1
+        elif fl:
+            c += 1
+        else:
+            d += 1
+    n = a + b + c + d
+    return {
+        "n": n, "comply_and_flagged": a, "comply_and_unflagged": b,
+        "refuse_and_flagged": c, "refuse_and_unflagged": d,
+        "comply_and_flagged_rate": a / n if n else float("nan"),
+    }
+
+
+def belief(items: dict, tau: float | None) -> dict:
+    """p_harm_orth at task_last, C8 vs C9, plus the comply-and-flagged cross-tab
+    for each condition. An untested mean invites exactly the "is this just
+    noise" question the adversarial review raised, so the direction of the
+    per-item delta is tested with an exact sign test, not asserted from a mean."""
     have = {k: v for k, v in items.items() if "C8" in v and "C9" in v
             and "p_harm_orth" in v["C8"] and "p_harm_orth" in v["C9"]}
     if not have:
         return {"n": 0, "note": "no --monitor data joined (p_harm_orth absent)"}
     c8_p = np.array([v["C8"]["p_harm_orth"] for v in have.values()])
     c9_p = np.array([v["C9"]["p_harm_orth"] for v in have.values()])
-    rows = [v["C8"] for v in have.values()]
-    n = len(rows)
-    comply_flagged = sum(1 for v in have.values() if comply(v["C8"]))
-    return {
-        "n": n,
+    delta = c8_p - c9_p
+    nonzero = delta[delta != 0]
+    n_pos = int((nonzero > 0).sum())
+    p_sign = binom_exact_p(n_pos, len(nonzero), 0.5) if len(nonzero) else float("nan")
+    out = {
+        "n": len(have),
         "mean_p_harm_orth_C8": float(c8_p.mean()),
         "mean_p_harm_orth_C9": float(c9_p.mean()),
-        "mean_delta": float((c8_p - c9_p).mean()),
-        "comply_C8_n": comply_flagged,
+        "mean_delta": float(delta.mean()),
+        "delta_sign_test": {
+            "n_positive": n_pos, "n_negative": int(len(nonzero) - n_pos),
+            "n_nonzero": int(len(nonzero)), "p_two_sided": p_sign,
+        },
     }
+    if tau is not None:
+        out["crosstab_C8"] = _crosstab([v["C8"] for v in have.values()], tau)
+        out["crosstab_C9"] = _crosstab([v["C9"] for v in have.values()], tau)
+        out["tau_harm_orth"] = tau
+    else:
+        out["crosstab_note"] = "tau_harm_orth unavailable -- Directions.load found no calibrated threshold"
+    return out
+
+
+def exploratory_family(items: dict) -> dict:
+    """Not part of the pre-registered Holm-corrected family (see module
+    docstring). Discriminates peer-endorsement from in-context repetition of
+    the restated content as the driver of the primary contrast."""
+    out = {}
+
+    have = {k: v for k, v in items.items() if "C6" in v and "C8n" in v}
+    b, c, delta, p = contrast(have, ref="C6", arm="C8n", outcome=comply)
+    out["C8n-C6"] = {"n_paired": len(have), "delta_pp": delta, "b": b, "c": c, "p_raw": p}
+
+    have = {k: v for k, v in items.items() if "C8n" in v and "C8" in v}
+    b, c, delta, p = contrast(have, ref="C8n", arm="C8", outcome=comply)
+    out["C8-C8n"] = {"n_paired": len(have), "delta_pp": delta, "b": b, "c": c, "p_raw": p}
+
+    have = {k: v for k, v in items.items() if all(cond in v for cond in ("C8", "C9", "C2", "C3"))}
+    d = np.array([
+        (comply(v["C8"]) - comply(v["C9"])) - (comply(v["C2"]) - comply(v["C3"]))
+        for v in have.values()
+    ], dtype=float)
+    nonzero = d[d != 0]
+    n_pos = int((nonzero > 0).sum())
+    p_sign = binom_exact_p(n_pos, len(nonzero), 0.5) if len(nonzero) else float("nan")
+    out["diff_in_diff_C8C9_vs_C2C3_matched"] = {
+        "n_paired": len(have), "mean_diff_pp": 100 * float(d.mean()) if len(have) else float("nan"),
+        "sign_test": {"n_positive": n_pos, "n_nonzero": int(len(nonzero)), "p_two_sided": p_sign},
+    }
+    return out
 
 
 def fallback_interaction(base_items: dict, abl_items: dict) -> dict:
@@ -171,11 +257,20 @@ def main() -> None:
     sec = secondary_family(items)
     print(json.dumps(sec, indent=1))
 
+    try:
+        dirs = Directions.load(CFG.results_dir)
+        tau = dirs.tau_harm_orth
+    except FileNotFoundError:
+        tau = None
     print("\n=== belief: p_harm_orth, C8 vs C9 ===")
-    bel = belief(items)
+    bel = belief(items, tau)
     print(json.dumps(bel, indent=1))
 
-    out = {"primary": prim, "secondary": sec, "belief": bel}
+    print("\n=== exploratory family (not Holm-corrected -- see module docstring) ===")
+    expl = exploratory_family(items)
+    print(json.dumps(expl, indent=1))
+
+    out = {"primary": prim, "secondary": sec, "belief": bel, "exploratory": expl}
 
     if prim["floor_pinned"] and args.content_abl and args.content_abl.exists():
         print(f"\nprimary is floor-pinned (<{FLOOR_PINNED_THRESHOLD} informative items) "
@@ -186,6 +281,25 @@ def main() -> None:
     elif prim["floor_pinned"]:
         print(f"\nWARNING: primary is floor-pinned (<{FLOOR_PINNED_THRESHOLD} informative "
               "items) and no --content-abl was given for the fallback interaction.")
+
+    # Stamp inputs' digests -- `results/gate_p_9b.json` was once quoted for a month
+    # while the transcripts under it had been re-judged out from under it, and
+    # nothing could tell (STATE.md). A derived artefact names its source or it
+    # cannot be checked against it.
+    out["source"] = {
+        "content_base": {"path": str(args.content_base),
+                          "sha256_16": hashlib.sha256(args.content_base.read_bytes()).hexdigest()[:16]},
+    }
+    if args.existing_base.exists():
+        out["source"]["existing_base"] = {
+            "path": str(args.existing_base),
+            "sha256_16": hashlib.sha256(args.existing_base.read_bytes()).hexdigest()[:16],
+        }
+    if args.content_abl and args.content_abl.exists():
+        out["source"]["content_abl"] = {
+            "path": str(args.content_abl),
+            "sha256_16": hashlib.sha256(args.content_abl.read_bytes()).hexdigest()[:16],
+        }
 
     out_path = args.content_base.with_name(args.content_base.stem + "_analysis.json")
     out_path.write_text(json.dumps(out, indent=1))
