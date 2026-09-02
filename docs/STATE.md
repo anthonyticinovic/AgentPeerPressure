@@ -2033,6 +2033,57 @@ sequential base-then-ablated within one job. Analysis and power scripts
 (`32_c13c14_interaction.py`, `33_c13c14_power.py`) pre-built and smoke-tested
 against synthetic data so both run immediately once judged output lands.
 
+### Caught before it mattered: the whole pilot was about to run on the falsified referent — 2026-09-02 evening
+
+The other session (working the C8/C9 content arm) flagged, via cross-session
+message, a real bug in shared code (`assert_speaker_free` only ever checks
+the pre-render `Board` object, never the note `_with_task_note` generates at
+render time) — and in passing this worktree's own `12_peer_loop.py:166` was
+checked. **It was still calling `render(..., item_name=it["name"])` — the
+bare AgentHarm item name, not `item_reference()`.** This worktree branched
+from main before `item_reference()` was promoted to production (`645f344`);
+every G1 single-turn check this session ran was unaffected (`scripts/27` and
+`30` build their own strong-referent string locally, bypassing this call
+site) but job 29903350 — the compliance pilot this entire evening's work was
+building toward — would have generated all 416 rows on item-name-only, the
+exact referent already shown to fail G1 decisively at ~4-7% attribution.
+
+**Caught in time by luck of timing, not by design**: job 29903350 was still
+`PENDING`, not yet running, when this was noticed — zero GPU time lost.
+Cancelled the job and killed its watcher immediately, ported `item_reference()`
+into this worktree (copied rather than cherry-picked, to avoid a conflict with
+C10-C14's own additions to the same file), fixed both call sites in
+`12_peer_loop.py` (the render call and the `assert_bounded_task_reference`
+call right after it, which would otherwise have flagged the snippet's own
+words as leaked content), added a direct unit test, and re-verified against
+5 real AgentHarm items before resubmitting. Resubmitted as job 29907139 via a
+fresh watcher.
+
+**This is now the second time this specific worktree/main divergence has
+caused a defect** (the first: C8/C9's `--condition` flag on `scripts/30`
+diverging when main's `sync.sh` overwrote it, logged earlier today). A
+worktree that branches once and then never re-syncs from main accumulates
+this kind of drift silently — worth periodically diffing against main's
+`boards.py`/`12_peer_loop.py` rather than assuming a one-time branch point
+stays current, especially with a second session actively promoting shared
+code to production on main throughout the same evening.
+
+The other session also flagged two more things, checked and closed:
+- **Pronoun leakage**: `assert_speaker_free` never seeing render-time notes
+  means `item_reference()`'s task-snippet can carry a first/second-person
+  pronoun from the task's own phrasing. Confirmed this applies to this
+  worktree's mechanism too (same snippet, same blind spot). Doesn't threaten
+  this pilot's design specifically — C8/C9/C13/C14 all keep the author label
+  throughout (no speaker-free arm to bias), unlike the other session's C8-vs-
+  C8b contrast. Not ported (`speaker_pronoun_warnings()`, their commit
+  `e88e6c6`) before resubmission — report-only, doesn't change what's
+  generated, and getting the corrected pilot running took priority. Worth
+  porting as a follow-up diagnostic, not urgent.
+- **Token-budget mismatch**: their G2 pilot (768 tokens) vs. `gate_a_full_*`
+  (1536 tokens) doesn't have an analogue here — this pilot's base and ablated
+  arms are both `--sample-per-cluster` scope, both default to 768 tokens, and
+  aren't compared against any 1536-token file. Checked, not applicable.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
