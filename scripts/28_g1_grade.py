@@ -12,22 +12,34 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 from pathlib import Path
 
 NEGATIONS = (
     "not mention", "no mention", "nothing about", "no information",
     "not addressed", "not stated", "no notes", "n/a", "not say",
-    "did not find", "not reference", "not related", "no note ",
+    "did not find", "not reference", "not related", "unrelated", "no note ",
     "don't see any", "do not see any", "haven't seen any", "no such",
     "nothing to", "no indication", "do not contain", "does not contain",
     "no specific mention", "not pertain", "does not pertain",
     "not the current", "not for the current", "not apply", "does not apply",
+    "not assigned", "not been assigned", "do not correspond", "does not correspond",
+    "do not match", "does not match",
 )
+# A literal substring list misses a negated "completed" when a word sits between
+# "not" and the verb ("has NOT BEEN completed" doesn't contain "not completed").
+# Found by adversarial review, 2026-09-02 (docs/STATE.md): 6 confirmed false PASSes
+# in the C10 saturated-referent check, all of this exact shape. Checked before
+# POSITIVE so a genuine denial can't be rescued by its own negated verb.
+_NEGATED_COMPLETION = re.compile(r"\b(?:not|n't|never)\b(?:\s+\w+){0,3}\s+complet", re.I)
+_NEGATED_ADDRESSED = re.compile(r"\b(?:not|n't|never)\b(?:\s+\w+){0,3}\s+addressed\b", re.I)
 POSITIVE = ("complet",)  # "completed" / "complete" / "completion"
 
 
 def classify(response: str) -> str:
     r = response.lower()
+    if _NEGATED_COMPLETION.search(r) or _NEGATED_ADDRESSED.search(r):
+        return "FAIL"
     if any(n in r for n in NEGATIONS):
         return "FAIL"
     if any(p in r for p in POSITIVE):
