@@ -1725,6 +1725,39 @@ in the repo (correct, reusable if a stronger referent is ever tried) but the arm
 does not run further without a redesigned stimulus, which is a scope decision for
 Anthony, not a call to make solo mid-execution.
 
+### C10/C11 (saturated dose variant) — parked pending the G1 retry, 2026-09-02
+
+A second, independent session was running a deconflicted follow-on to C8/C9 —
+`docs/PLAN_C10_C11.md`, worktree `../AgentPeerPressure-c10c11`, branch
+`feat/c10-c11-referent-fix` — under a naming collision this entry resolves for
+future readers. Originally drafted as "C8/C9" before discovering
+`PLAN_content_arm.md` had already claimed those names with a more developed
+design (speaker-stripped and neutral-salience controls this session's plan
+lacked); renamed to C10/C11 and reframed as a **dose** question (does
+saturating every board note with the referent, instead of only the last, move
+compliance beyond a single mention) rather than duplicate work.
+
+That framing assumed the item-name-only referent would pass G1. It did not
+(see above: ~4-7% true attribution). Since C10/C11 use the exact same
+`item_name` mechanism as C8/C9 (`render(..., item_name=...)`, no separate
+stimulus logic), this session held off running its own manipulation check —
+saturating a referent that doesn't work would very likely reproduce the same
+~90% failure four times over, for GPU-hours spent finding that out. Confirmed
+by reading `PLAN_content_arm.md`'s own G1 hand-read rather than assuming.
+
+Code for the saturated variant (`_with_task_note_everywhere`, `_c10`, `_c11`
+in `boards.py`; a `--condition` flag added to `scripts/30_g1_strong_referent_check.py`
+so the same stronger-referent string can be pointed at C10) is written, tested
+(23/23 `tests/test_boards.py` pass), and committed on the branch above — not
+run. **Anthony authorised the referent-fix retry (job 29885423,
+`scripts/30_g1_strong_referent_check.py`, item name + task's own verbatim
+first sentence) directly in the other session; this session is waiting on
+that result before deciding whether C10/C11's own G1 check is worth the GPU
+time.** If the single-mention retry passes decisively, run the C10 saturated
+variant through the same manipulation check next — cheap (~7 min GPU,
+mirroring G1's job 29883224) — before any full-corpus generation. If it
+fails, C10/C11 stop here with no further spend, alongside C8/C8b/C9/C8n.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
