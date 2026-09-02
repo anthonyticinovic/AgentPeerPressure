@@ -238,6 +238,17 @@ note on a clear majority of items. If it does not, **stop**. C8 cannot work, and
 finding itself is worth writing up — report it and do not spend the generation
 budget.
 
+**Amendment, 2026-09-02 — G1 failed, one retry authorised by Anthony.** Item-name-only
+G1 result on Qwen3.5-9B: true attribution ~4-7% (docs/STATE.md has the full
+hand-read). Presented as a stop per the criteria above; Anthony chose one cheap
+retry with a stronger referent (item name + the task's own verbatim first sentence,
+mechanically extracted, `scripts/30_g1_strong_referent_check.py`) rather than
+accepting the stop outright. This is not a reopening of the item-name-only-vs-
+paraphrase decision in §2 — the snippet is still code-extracted, not hand-authored,
+so it does not reintroduce the 208-items-of-hand-authoring problem. **The same pass
+criteria apply to the retry.** If it also fails, stop for real: two referent designs
+failing is a stronger result than one.
+
 ### G2 — pilot (208 rows, ~2h)
 
 `--one-per-grader` gives 52 items with full grader coverage. Run × 4 new conditions,
