@@ -1995,6 +1995,44 @@ C13-C14 interaction statistic (reusing `interaction()` from
 `19_ablation_analysis.py` unchanged, verified condition-agnostic by the
 design review) to follow in this log.
 
+**A second adversarial review of the pre-registration (design-stage, before
+generation) caught six real issues, all fixed before submission — full
+detail in `docs/PLAN_C10_C11.md`, summary here:**
+
+1. Gate criterion #1's premise was false — C8/C9 base-arm *generation*
+   already exists (`results/content_arm_pilot_base.json`, the other session's
+   G2 pilot), just not judged. Corrected the framing.
+2. `21_interaction_power.py`'s `main()` loads via a hardcoded 9-condition
+   tuple, which would silently degrade to NaN against a file that only ever
+   has C8/C9/C13/C14 — a real bug, but not touched, since loosening its
+   default could silently change which items pair for the *existing*
+   confirmatory analysis. Built `scripts/33_c13c14_power.py` instead, reusing
+   the underlying (already-generic) simulation functions with this test's own
+   condition set. Validated against synthetic data: matches the production
+   `interaction()` function to float precision.
+3. The G1 numbers this whole test is justified by (C12/C13, 81.2%/83.2%
+   raw) weren't backed by any file present in this worktree — fetched to the
+   main checkout's `results/`, never copied over. Copied them in.
+4. Gate criterion #3 checked the wrong mechanism (`cut_mid_call`, a fixed
+   per-turn cap board length can't move) instead of the project's actual
+   documented board-length failure mode (hitting `max_turns` without
+   resolving). Added the real check.
+5. The "descriptive, not a formal test" disclaimer for the interaction-
+   magnitude comparison got a mechanical CI-overlap rule, not just a label.
+6. `hpc/pilot_c13c14.sbatch`'s comment claimed an external resubmit loop
+   that didn't exist anywhere — given `gpu-l40s-preempt`'s `PreemptMode` is
+   very likely `CANCEL` (confirmed earlier today) and a 13h unsupervised
+   window, an unwatched preemption could have silently stalled the pilot.
+   Built `hpc/watch_and_resubmit.sh` (poll to terminal state, resubmit on
+   anything but `COMPLETED`, up to 6 attempts) and launched it **on the
+   Spartan login node itself** via `nohup`, not laptop-side — a dropped SSH
+   session shouldn't be able to kill the only thing watching a multi-hour job.
+
+Job 29903350 submitted (via the watcher) to the isolated `-c10c11` directory,
+sequential base-then-ablated within one job. Analysis and power scripts
+(`32_c13c14_interaction.py`, `33_c13c14_power.py`) pre-built and smoke-tested
+against synthetic data so both run immediately once judged output lands.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
