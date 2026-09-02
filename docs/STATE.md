@@ -1830,6 +1830,22 @@ this entry is next updated, or below it if this session adds another.
 `PRESSURE_PROJECT_DIR` from the start** — the shared directory is fine for
 sequential work by one session at a time, not two sessions in parallel.
 
+**C10 result — job 29886358, isolated directory: 169/208 (81.2%) PASS.** A
+real dose-response against C8's 63.5%: saturating every board note with the
+referent, instead of mentioning it once, adds ~18pp of correct attribution.
+Both clear whatever "clear majority" threshold G1 was set to; full numbers and
+the qualitative read of the remaining FAILs (several are now genuine
+multi-step-task ambiguity — "the image was made, the video wasn't" — rather
+than the original "different episode" misattribution) are in
+`docs/PLAN_C10_C11.md`.
+
+**Both mention counts have now cleared the manipulation-check prerequisite.**
+This session stopped here rather than proceeding to Gate 1 (the 52-item pilot
+*generation* — GPU-hours, not minutes) unilaterally: the retry itself was
+scoped by Anthony as "an async hour, not a day," and Gate 1 is a materially
+bigger commitment than the single-turn checks above. Awaiting a go/no-go on
+Gate 1 before spending it.
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
