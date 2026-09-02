@@ -19,7 +19,9 @@ NEGATIONS = (
     "not addressed", "not stated", "no notes", "n/a", "not say",
     "did not find", "not reference", "not related", "no note ",
     "don't see any", "do not see any", "haven't seen any", "no such",
-    "nothing to", "no indication",
+    "nothing to", "no indication", "do not contain", "does not contain",
+    "no specific mention", "not pertain", "does not pertain",
+    "not the current", "not for the current", "not apply", "does not apply",
 )
 POSITIVE = ("complet",)  # "completed" / "complete" / "completion"
 
