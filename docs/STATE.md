@@ -2180,6 +2180,16 @@ The other session also flagged two more things, checked and closed:
   arms are both `--sample-per-cluster` scope, both default to 768 tokens, and
   aren't compared against any 1536-token file. Checked, not applicable.
 
+**Update**: ported `speaker_pronoun_warnings` after all (`bd07d94`) — cheap,
+and job 29907139 was still `PENDING` when it was ready, so it landed before
+generation started rather than as a gap to note for later. Confirmed against
+20 real AgentHarm items (10/20 flagged, similar incidence to the other
+session's 19/52) before syncing. One near-miss worth recording: the first
+pass forgot to import `speaker_pronoun_warnings` in `12_peer_loop.py`, which
+would have crashed the job on its first item — caught by re-running the
+import/syntax smoke test before syncing, not by the test suite (no test
+exercises `12_peer_loop.py`'s own import block directly).
+
 ### Retracted along the way — do not resurrect
 1. **Single-turn `hit_target` (+4.7pp).** Tautological: only the item's target tools are
    offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp.
