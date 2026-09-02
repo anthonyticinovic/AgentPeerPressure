@@ -67,8 +67,15 @@ def comply(r: dict) -> bool:
 
 
 def _load_rows(path: Path) -> list[dict]:
+    """`12_peer_loop.py` writes the full row skeleton (task, board, user_text) for
+    every row up front, before generation -- so a checkpointed, still-running file
+    (an interim look at G3/G4) has all 832 rows present with `full_compliance_judged`
+    absent on whatever hasn't been generated yet. `"turns" in r` is the same
+    generated-or-not test `15_regrade.py` uses; without it, `comply()` KeyErrors on
+    the first not-yet-processed row instead of just excluding it."""
     payload = json.loads(path.read_text())
-    return [r for r in payload["rows"] if "grade_error" not in r and "judge_error" not in r]
+    return [r for r in payload["rows"]
+            if "turns" in r and "grade_error" not in r and "judge_error" not in r]
 
 
 def load_joined(content_path: Path, existing_path: Path | None) -> dict:
