@@ -1905,6 +1905,40 @@ Spartan account, competing for the same fair-share priority. Told them; suggeste
 each session pick a different partition going forward. Each job has its own
 hardened watcher instance.
 
+**At 1536 tokens, G3/G4 ran ~2-3x slower than the plan estimated** (which assumed
+768): projected ~30h/~38h total wall clock against 20h/24h walltimes set at
+submission. Caught before either job actually timed out: raised both to 48h and
+widened the watcher's retry states to include `TIMEOUT`/`OUT_OF_MEMORY` alongside
+`PREEMPTED`/`CANCELLED`/`NODE_FAIL` — the original list would have treated a
+walltime kill as an unhandled terminal state and stopped watching a job that was
+still fine to resubmit.
+
+**SSH access to Spartan was lost entirely for several hours (2026-09-02 evening
+into 2026-09-03) — outage or a triggered block, cause unconfirmed, but both jobs
+ran the whole window uninterrupted** (checked on reconnect: 16h33m continuous
+elapsed on both, no gap). SLURM jobs do not depend on a live SSH session to a
+login node, so this cost zero correctness and zero progress — only the ability to
+watch, catch a real failure promptly, or fetch data. No public outage notice found
+on Melbourne's HPC status channels; can't rule out that our own automated volume
+tripped a rate-limit or security block: two independent watcher loops (this
+session's own hardened one plus the other session's) polling `squeue`/`sacct`
+every 60-90s continuously for 12+ hours each, plus roughly a dozen
+`sbatch --test-only` dry-run sweeps used as a congestion probe, all under the one
+shared account.
+
+**Mitigation, per Anthony's explicit instruction to be more careful and assume
+we're being watched for cluster etiquette:** replaced the two 60-90s-cadence
+watcher loops with one consolidated 30-minute-cadence check covering both jobs in
+a single `sacct -j <id1>,<id2>` call — roughly a 40-60x reduction in connection
+volume. Dropped `sbatch --test-only` as a routine congestion probe entirely
+(`squeue -p <partition>` / `sinfo` give the same signal without a real scheduler
+submission). On any SSH hiccup, the new watcher just waits for the next 30-minute
+cycle rather than retrying immediately — during an actual block, immediate retries
+are the wrong response regardless of whether they'd technically work. Capped at 3
+resubmissions per job before stopping and flagging for manual review, rather than
+retrying indefinitely. `/tmp/watch_both_low_freq.sh` (not in the repo — throwaway
+infra; reproduce from this description if needed again).
+
 ### C10/C11 (saturated dose variant) — parked pending the G1 retry, 2026-09-02
 
 A second, independent session was running a deconflicted follow-on to C8/C9 —
