@@ -6,7 +6,7 @@
 #
 #   mkdir -p logs/slurm && sbatch hpc/g4_content_full_abl.sbatch
 #SBATCH --job-name=g4_abl
-#SBATCH -p gpu-a100-preempt
+#SBATCH -p gpu-l40s-preempt
 #SBATCH --account=comp90055
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
