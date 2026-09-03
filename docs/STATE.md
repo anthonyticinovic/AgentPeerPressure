@@ -1939,6 +1939,32 @@ resubmissions per job before stopping and flagging for manual review, rather tha
 retrying indefinitely. `/tmp/watch_both_low_freq.sh` (not in the repo — throwaway
 infra; reproduce from this description if needed again).
 
+**G3 (base) completed — 2026-09-03.** Timed out once at 20h (job 29906798, 750/832
+rows checkpointed), auto-resubmitted by the watcher as 29956988, finished the
+remaining 82 rows in 48 minutes. Full 832/832 fetched, regraded (92/832 verdicts
+changed, 4 unscored), pre-registered analysis run. **Primary C8-C9: +1.9pp, b=13
+c=9, p=0.523, n_informative=22 (not floor-pinned this time) — a clean, adequately
+powered null, in contrast to the pilot's +9.6pp/p=0.125.** The exploratory
+diff-in-diff also regressed (pilot +17.3pp/p=0.016, 7 pairs -> full base arm
++5.3pp/p=0.071, 31 pairs). Secondary family all non-significant after Holm.
+**One result strengthened rather than regressed: the belief-direction sign test,
+p=0.00013 at pilot -> p=2.5e-12 at n=208** (174/208 items, C9 reads higher
+`p_harm_orth` than C8) — real and replicating, independent of the compliance
+null. Base arm alone is not the full story: the existing nine-condition design
+found the identical pattern (null with refusal intact, Result 2) and only saw
+movement once refusal was ablated (Result 3) — G4 is the arm that actually tests
+whether that repeats here. Told Anthony plainly rather than let the pilot's
+optimism stand uncorrected; holding the write-up's follow-on section as-is
+until G4 lands rather than rewriting on a half-complete picture.
+
+**G4 also timed out (job 29906800, 670/832 checkpointed) and its resubmit
+(29994669) queued at gpu-a100-preempt with an 18-hour estimated start** —
+`gpu-l40s-preempt` checked fresh and showed ~7h instead, so cancelled the
+pending job (safe: hadn't started, no data at risk) and resubmitted there as
+29998691, single-job watcher (`/tmp/watch_g4_only.sh`, same 30-minute/one-call
+design) re-pointed at it. `hpc/g4_content_full_abl.sbatch`'s partition updated
+to `gpu-l40s-preempt` for any future resubmission too.
+
 ### C10/C11 (saturated dose variant) — parked pending the G1 retry, 2026-09-02
 
 A second, independent session was running a deconflicted follow-on to C8/C9 —
