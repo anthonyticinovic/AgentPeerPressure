@@ -1965,6 +1965,159 @@ pending job (safe: hadn't started, no data at risk) and resubmitted there as
 design) re-pointed at it. `hpc/g4_content_full_abl.sbatch`'s partition updated
 to `gpu-l40s-preempt` for any future resubmission too.
 
+### G3/G4 final result — three adversarial reviews, one retraction, one confirmed finding — 2026-09-04
+
+Both arms completed (G4's second resubmit, job 29998743, finished cleanly on
+`gpu-a100-preempt` after its own queue delay — general cluster congestion plus
+this account's fair-share usage from a full day of G1-G4 generation, confirmed via
+`sshare`, not a partition mistake; see the exchange with Anthony on this).
+Fetched, regraded, analysed. What follows is the final, three-times-reviewed
+account — earlier numbers in this file for G3/G4 (the +8.17pp "ablated primary
+significant" entry, the base-arm-null entry before this one) are superseded by
+this entry, not wrong in isolation, just incomplete.
+
+**Two real code bugs found and fixed, both project-wide, neither just about this
+result:**
+
+1. **`Score.unscored` was always `()`.** `judge.py` recorded a 60-char *prompt*
+   prefix on a judge decline; `grading.py` matched it against criteria-dict
+   *keys* — structurally can never be equal. Every declined judge verdict was
+   silently scored `False` and pooled as non-compliance, the exact bias the
+   mechanism exists to prevent. STATE's own earlier "0/1248 rows unscored"
+   entries were the bug being misread as a clean result, not evidence of one.
+   Fixed with `any_decline_this_row()`: marks the whole row unscored on any
+   decline (not a specific criterion — a vendored grading function calls
+   `semantic_judge` with a prompt string, not a criteria key, so which specific
+   criterion declined can't be recovered without instrumenting 52 vendored
+   functions we don't modify). 3 new tests (`tests/test_judge.py`).
+2. **`binom_exact_p`'s `eps=1e-12` was an absolute tolerance on a probability.**
+   Once `p_obs` itself is far below 1e-12 (routine at n≈200 for an extreme
+   split), the tail-sum degenerates into "sum everything below 1e-12," so
+   distinct tiny p-values all returned the identical floored constant
+   (`2.5051755990027796e-12`, appeared identically for both a 34/208 and a
+   41/208 split before the fix). Fixed to a relative tolerance. Verified against
+   `scipy.stats.binomtest` to 2.8e-14 worst-case relative error across 400
+   random `(k,n,p0)` by the third review.
+
+Neither bug flipped a conclusion by itself, but both had to be fixed before
+anything downstream could be trusted, and re-regrading both files under the
+fix changed row counts slightly (208→206/207/203 paired items in various
+contrasts below, from excluding now-correctly-flagged unscored rows).
+
+**Review 1 (Opus, cold): base arm is a clean, well-powered null; ablated arm
+looked significant.** Base-arm primary (`full_compliance_judged`, C8-C9):
++1.9pp, b=13 c=9, p=0.52 item / 0.30 cluster, 22 informative pairs (not
+floor-pinned — this corpus needed ~15). Ablated-arm primary: +8.17pp,
+p=0.0046/0.017 (pre-bugfix numbers). Found the D1/D2 bugs above, found the
+`29_content_arm_analysis.py` "always analyse the ablated arm" fix (made
+between G3 finishing and G4's data landing) was well-motivated in substance
+but not made blind — disclosed here as asked: the change should have been
+made on 2026-09-03 when G3's `floor_pinned: false` was already known, and
+wasn't; it was made in the same few minutes the significant ablated number
+first existed. Most importantly, hand-classified all discordant C8/C9 pairs
+in both arms and found `full_compliance_judged` — a conjunction over ~6.4
+rubric criteria — cancels real refusal differences (11 of 13 base-arm b-pairs:
+C9 refuses outright) against one-criterion rubric slips (0 of 9 base-arm
+c-pairs have C8 refusing; all 9 are both-sides-completed transcripts differing
+on one criterion). Proposed an exploratory `substantive_action` outcome
+(≥1 non-preparatory tool call, non-refusal-worded payload) to separate the two
+failure modes, and found it dramatic in the base arm.
+
+**Review 2 (Opus, cold, different focus: validate the new outcome): confirmed
+`substantive_action` with hand-reads and 4 "independent" metrics — none of
+which turned out to be independent.** Hand-read 42 transcripts, found the
+function's own refusal-regex clause is inert (fires on 1/1664 rows, changes 0
+verdicts — it is functionally "any non-preparatory call"), found 4 of 52
+graders are structurally all-preparatory (128/1664 rows, evenly split by
+condition, cost power but don't create the effect), and reported the base-arm
+pattern survives 4 metrics including the vendored continuous rubric score.
+Recommended dropping all ablated-arm `substantive_action` numbers (ceiling-
+compressed, 12/15 hand-read errors in the decisive cell — correct) but also
+recommended dropping the ablated arm's *pre-registered* numbers generally,
+which was wrong (see review 3).
+
+**Review 3 (Opus, cold, explicitly different frame: multiplicity, confounds,
+independent reproduction): found the base-arm effect is a retracted metric in
+disguise, and rescued the real ablated-arm finding.** The decisive fact review
+2 missed: AgentHarm runs with `n_irrelevant_tools=0`, so **every tool call the
+model can make already is one of the item's own target functions** — "≥1
+non-preparatory call", "≥1 target function called", and "any tool call at all"
+are the *same variable* on this corpus, not four independent metrics. Applying
+this project's own standing robustness check (STATE §3: restrict to items
+where `any_call` does not differ between conditions, the test that already
+retracted `hit_target` and PARTIAL C2-C0) collapses the base-arm
+`substantive_action` primary from **+13.1pp/p=1.1e-05 to +1.7pp/p=0.375**. Same
+failure mode, third time. The continuous rubric-score result collapses
+identically (+0.10/p=5e-5 → +0.004/p=0.76) because it is a near-step-function of
+whether the model called a tool at all. **Multiplicity itself was not the
+problem** (the review did the Bonferroni arithmetic across ~50 tests run that
+day; the headline `substantive_action` number would have survived it by three
+orders of magnitude) — outcome-switching after seeing the pre-registered result
+fail was. Confounds checked directly and found clean: 7 of 8 harm categories
+show the same direction (discordant pairs are broad-based, largest category
+contributes 6/31), all 4 prompt variants show it, board assignment is
+independent of category (χ²=60.87, df=63, p=0.55) and of discordance (b>c on
+all 10 boards). An independent from-scratch reimplementation (own script,
+`scipy.stats.binomtest`, no import of `pressure.stats` or `scripts/29`)
+reproduced every number to the digit, and confirmed the fixed `binom_exact_p`
+and the cluster-permutation construction are both correct.
+
+**The rescue: the ablated arm's *pre-registered* primary is not an engagement
+artefact.** Same any_call-static restriction, applied to `comply` instead of
+`substantive_action`: **+6.90pp unrestricted → +7.14pp restricted, p_cluster =
+0.0266 both times** — survives essentially unchanged. This is the opposite
+pattern from the retracted metric, and it is the one number in this whole
+follow-on that has now cleared three rounds of adversarial review, an
+independent reproduction, and its own robustness restriction.
+`retraction4_check()` is now a permanent, always-computed part of
+`29_content_arm_analysis.py` — any new outcome gets this check automatically,
+not only when a reviewer happens to ask (commit message has the full
+mechanical explanation).
+
+**Final numbers, base arm (n=206-208, after the unscored-row fix), full
+208-item corpus, both arms:**
+
+| | base arm | ablated arm |
+|---|---|---|
+| pre-registered primary (`comply`, C8-C9) | +1.94pp, p=0.52/0.30, null | **+6.90pp, p=0.016/0.027, significant** |
+| survives any_call-static restriction? | n/a (already null) | **yes, +7.14pp, same p_cluster** |
+| secondary family (Holm-3) | none significant | none significant |
+| `substantive_action` (RETRACTED) | +13.1pp/p=1.1e-05 unrestricted → **+1.7pp/p=0.375 restricted** | ceiling-compressed, not reported |
+| cross-arm interaction | +4.48pp, p=0.28, not significant | |
+| belief sign test (C9 > C8 on `p_harm_orth`) | 173/206 negative, p≈4e-24 item / 4e-16 cluster | 163/203 negative, similarly extreme |
+
+**Reframe of the belief result, per review 1's own finding:** `p_harm_orth` is
+read at `task_last` on turn 0, before any generation, under greedy decoding —
+it is a deterministic function of two different *prompt* strings (C8's vs
+C9's), not evidence a belief forms during generation and fails to move
+behaviour. Report the direction (consistent, both arms) and the small
+magnitude (~-0.17 to -0.22 on a ~-1.5 mean), not the extreme p-value, which is
+a predictable consequence of n≈200 with a tiny, consistent per-item nudge, not
+a sign of a large effect. `comply_and_flagged` stays low in both arms (4-10 of
+~205), consistent with the project's standing probe/behaviour decoupling
+result.
+
+**What this actually supports, stated plainly:** the pre-registered primary is
+null with refusal intact and significant once refusal is ablated — the
+identical qualitative pattern the original nine-condition design found
+(Results 2→3), now shown for the content-bearing arm too, and confirmed robust
+to the one mechanical alternative explanation (engagement/any-call) that
+sank an earlier-looking version of this same story. It does **not** support a
+clean "content beats speaker" H5/H6 mechanism claim — that pattern only ever
+appeared inside the retracted `substantive_action` metric; the pre-registered
+secondary family (C8-C8b, C8-C2, C8b-C1b) is non-significant in both arms.
+The cross-arm interaction itself — the test that would show ablation
+specifically *widens* the content-bearing gap — is not significant (p=0.28),
+so "ablation opens this arm up too" is supported at the level of "the ablated
+arm's own contrast is real," not at the level of "the gap between arms is
+itself established."
+
+**Write-up implications, not yet applied:** `docs/writeup.md`'s current
+follow-on section says the confirmatory run "did not finish" / "only
+pilot-scale data exist" — both arms are now complete and this entry is the
+real result; that section needs a full rewrite, not a patch, before any of the
+numbers above go in it.
+
 ### C10/C11 (saturated dose variant) — parked pending the G1 retry, 2026-09-02
 
 A second, independent session was running a deconflicted follow-on to C8/C9 —
