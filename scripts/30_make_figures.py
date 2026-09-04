@@ -195,6 +195,10 @@ def fig_content_arm() -> None:
               f"   abl {d['abl'][1]:5.1f}% (n={d['abl'][0]})")
 
     order = ["C0", "C1b", "C2", "C3", None, "C8", "C8b", "C9", "C8n"]
+    # The two valence-flip pairs carry the actual pre-registered contrasts;
+    # labelling their rates directly gives scale without needing colour to
+    # flag them.
+    labelled = {"C2", "C3", "C8", "C9"}
 
     fig, ax = plt.subplots(figsize=(7, 5.5))
     ys, labels = [], []
@@ -207,6 +211,11 @@ def fig_content_arm() -> None:
         ax.plot([a, b], [y, y], "-", color=GRID, lw=6, solid_capstyle="round", zorder=1)
         ax.scatter([a], [y], s=90, color=INTACT, zorder=3)
         ax.scatter([b], [y], s=90, color=ABLATED, zorder=3)
+        if cond in labelled:
+            ax.annotate(f"{a:.1f}%", (a, y), textcoords="offset points", xytext=(0, 11),
+                        ha="center", fontsize=9, color=INTACT)
+            ax.annotate(f"{b:.1f}%", (b, y), textcoords="offset points", xytext=(0, 11),
+                        ha="center", fontsize=9, color=ABLATED)
         ys.append(y)
         labels.append(cond)
         y -= 1
