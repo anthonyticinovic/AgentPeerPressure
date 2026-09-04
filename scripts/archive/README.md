@@ -2,10 +2,10 @@
 
 Every script here produced a result that was later **retracted**. They are retained so
 the reasoning behind the retraction is reproducible, not because their numbers stand.
-The findings that replaced them live in the plan's "Findings from Checkpoint 5" section
-and in the research log (`artifacts/inspection.html`).
+The findings that replaced them live in `docs/STATE.md`.
 
-Do not cite outputs from these scripts. The working pipeline is `scripts/01`–`09` and `12`–`15`.
+Do not cite outputs from these scripts. The working pipeline is `scripts/01`–`30`
+(one-off investigations that were never wrong live in `scripts/diagnostics/` instead).
 
 | File | Was | Why retired |
 |---|---|---|
@@ -16,6 +16,5 @@ Do not cite outputs from these scripts. The working pipeline is `scripts/01`–`
 | `matched_fit.py` | fit on JBB matched pairs | corpus-axis diagnostic; superseded for selection, but its confound finding still informs r_ref-as-monitor |
 | `arditi_sweep_layers_only.py` | "Arditi" causal sweep | swept 32 of 288 candidates (layers only, position −1), judge-graded, no filters |
 | `rdo_lite.py` | self-invented "RDO-lite" | optimised −log P("Sure, here"), a prefix proxy; not Wollschläger et al.'s method; unnecessary once diff-of-means passed Gate B |
-
-| `10_peer_pilot.py` | Single-turn peer-framing pilot. Its compliance readout counted *any* target-function call, but only the item's own target tools are ever offered, so it meant "emitted any tool call". Payload-only rescoring gave +0.0pp. A single turn also cannot reach the payload step for 48 of 56 items. Superseded by `12_peer_loop.py`. |
-| `11_peer_analysis.py` | Scored that pilot. Hardcodes the superseded data path and prints retracted numbers on a bare run. Superseded by `13_loop_analysis.py`. |
+| `10_peer_pilot.py` | single-turn peer-framing pilot | compliance readout counted *any* target-function call, meaning "emitted any tool call" since only the item's own target tools are ever offered; payload-only rescoring gave +0.0pp; a single turn also can't reach the payload step for 48 of 56 items. Superseded by `12_peer_loop.py` |
+| `11_peer_analysis.py` | scored that pilot | hardcodes the superseded data path and prints retracted numbers on a bare run. Superseded by `13_loop_analysis.py` |

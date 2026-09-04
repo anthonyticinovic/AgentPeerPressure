@@ -63,8 +63,8 @@ python scripts/17_cluster_preflight.py --gate-a
 # C1 closes the reversed-direction falsifiability gap (no way to tell a real framing
 # reversal from "any extra board text moves compliance"); C4/C5 are the only check
 # that the instrument responds to non-peer-specific framing at all. All three are
-# already implemented in boards.py/CONDITIONS and rendered/validated by
-# 09_inspect_stimuli.py; this is the first generation run that includes them.
+# already implemented in boards.py/CONDITIONS and covered by tests/test_boards.py;
+# this is the first generation run that includes them.
 CONDS="C0 C1 C1b C2 C3 C4 C5 C6 C7"
 case "${GATE_A_SCOPE}" in
     # Pilot's cut_mid_call rate grew under ablation (3/52 base -> 5/52 abl items touched,
