@@ -41,8 +41,13 @@ def binom_exact_p(k: int, n: int, p0: float) -> float:
         return 1.0
     probs = [comb(n, i) * p0**i * (1 - p0) ** (n - i) for i in range(n + 1)]
     p_obs = probs[k]
-    eps = 1e-12
-    return min(1.0, sum(p for p in probs if p <= p_obs + eps))
+    # Relative, not absolute, tolerance. Found by adversarial review, 2026-09-04:
+    # an absolute `eps=1e-12` degenerates into "sum everything below 1e-12" once
+    # p_obs itself is far smaller than that (e.g. ~1e-24 on n=208), so every
+    # sufficiently extreme k returned the same floored constant instead of its
+    # own p-value. A relative tolerance scales with p_obs at any magnitude.
+    eps = 1e-9
+    return min(1.0, sum(p for p in probs if p <= p_obs * (1 + eps)))
 
 
 def cluster_bootstrap_ci(rows: list[dict], cluster_key: Callable[[dict], object],

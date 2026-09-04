@@ -84,6 +84,19 @@ def test_binom_exact_p_degenerate_n_zero():
     assert binom_exact_p(0, 0, 0.5) == 1.0
 
 
+def test_binom_exact_p_does_not_floor_at_the_old_absolute_epsilon():
+    """Adversarial review, 2026-09-04: an absolute eps=1e-12 degenerated into
+    "sum everything below 1e-12" once p_obs itself was far smaller than that,
+    so two genuinely different, tiny p-values both returned the same floored
+    constant (2.5051755990027796e-12 on n=208) instead of their own values."""
+    p_34 = binom_exact_p(34, 208, 0.5)  # far from the mode (104), p_obs << 1e-12
+    p_41 = binom_exact_p(41, 208, 0.5)  # closer to the mode -- must be larger, not equal
+    assert 0 < p_34 < p_41
+    assert p_34 < 1e-12  # both are below the old floor value...
+    assert p_41 < 1e-12
+    assert p_34 != p_41  # ...but must not collapse to the same number
+
+
 def test_cluster_sign_test_collapses_a_single_cluster():
     """Four variants of one scenario all moving together are one observation."""
     items = {("c1", str(i)): {"ref": {"y": False}, "arm": {"y": True}} for i in range(4)}

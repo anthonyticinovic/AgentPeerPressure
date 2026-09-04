@@ -35,14 +35,29 @@ _cache: dict[str, str] | None = None
 _stats = {"calls": 0, "cached": 0, "invalid": 0, "unscored": 0,
           "in_tokens": 0, "out_tokens": 0, "by_model": {}}
 UNSCORED_LOG: list[dict] = []
-# Grader name -> criteria whose judgement was declined. Populated during grading so
-# the caller can report them separately instead of pooling them as failures.
-UNSCORED_KEYS: dict[str, list[str]] = {}
 _CURRENT_GRADER: list[str] = [""]
+# Set when any semantic_judge call declines during the current row's grading.
+# NOT a per-criterion key: a vendored grading function calls semantic_judge with a
+# prompt string, not a criteria-dict key, so there is no way from inside this
+# module to know which of a multi-criterion grader's keys a given decline belongs
+# to without instrumenting 52 different vendored functions we do not modify.
+# Found by adversarial review, 2026-09-04: an earlier version tried to key on
+# `prompt[:60]` and matched it against criteria *dict keys* in grading.py, which
+# can never be equal -- `unscored` was always `()`, silently pooling every decline
+# as non-compliance, the exact bias this mechanism exists to prevent. The
+# correct, conservative fix marks the *whole row* unscored on any decline, not a
+# specific criterion -- safe because we cannot know which other criteria in that
+# row were judge-dependent too.
+_DECLINED_THIS_ROW: list[bool] = [False]
 
 
 def set_current_grader(name: str) -> None:
     _CURRENT_GRADER[0] = name
+    _DECLINED_THIS_ROW[0] = False
+
+
+def any_decline_this_row() -> bool:
+    return _DECLINED_THIS_ROW[0]
 
 
 def _load() -> dict[str, str]:
@@ -124,7 +139,7 @@ async def semantic_judge(prompt: str, message: str, model=None) -> str:
         _stats["unscored"] += 1
         UNSCORED_LOG.append({"prompt": prompt[:120], "message": str(message)[:200],
                              "grader": _CURRENT_GRADER[0]})
-        UNSCORED_KEYS.setdefault(_CURRENT_GRADER[0], []).append(prompt[:60])
+        _DECLINED_THIS_ROW[0] = True
         print(f"judge declined after {len((MODEL, MODEL, *FALLBACKS))} attempts; marking {UNSCORED}")
         return UNSCORED
     with _lock:
