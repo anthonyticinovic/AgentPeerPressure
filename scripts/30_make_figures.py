@@ -163,11 +163,17 @@ def fig_conditions() -> None:
 
 
 def _content_arm_rates() -> dict:
+    # All nine, n=208 in both arms, 0 dropped -- Result 3's own table.
     published = {
         "C0": {"base": (208, 19.2), "abl": (208, 43.3)},
+        "C1": {"base": (208, 18.3), "abl": (208, 41.3)},
         "C1b": {"base": (208, 22.1), "abl": (208, 41.8)},
         "C2": {"base": (208, 21.2), "abl": (208, 44.7)},
         "C3": {"base": (208, 24.5), "abl": (208, 42.3)},
+        "C4": {"base": (208, 21.6), "abl": (208, 43.3)},
+        "C5": {"base": (208, 23.1), "abl": (208, 48.1)},
+        "C6": {"base": (208, 21.6), "abl": (208, 44.2)},
+        "C7": {"base": (208, 24.5), "abl": (208, 44.2)},
     }
 
     def load(name):
@@ -188,25 +194,14 @@ def _content_arm_rates() -> dict:
     return out
 
 
-def fig_content_arm() -> None:
-    data = _content_arm_rates()
-    for cond, d in data.items():
-        print(f"content_arm  {cond:4s}  base {d['base'][1]:5.1f}% (n={d['base'][0]})"
-              f"   abl {d['abl'][1]:5.1f}% (n={d['abl'][0]})")
-
-    order = ["C0", "C1b", "C2", "C3", None, "C8", "C8b", "C9", "C8n"]
-    # The two valence-flip pairs carry the actual pre-registered contrasts;
-    # labelling their rates directly gives scale without needing colour to
-    # flag them.
-    labelled = {"C2", "C3", "C8", "C9"}
-
-    fig, ax = plt.subplots(figsize=(7, 5.5))
-    ys, labels = [], []
-    y = len(order) - 1
-    for cond in order:
-        if cond is None:
-            y -= 1
-            continue
+def _dot_plot(data: dict, order: list[str], labelled: set[str], title: str, name: str) -> None:
+    """Shared drawing code for the two standalone condition dot plots below.
+    `C0` (no board at all) is included in both as the one shared "nothing
+    happened" anchor the rest of the write-up already calibrates against, not
+    duplicated for its own sake."""
+    fig, ax = plt.subplots(figsize=(6.5, 0.85 * len(order) + 1.6))
+    ys = list(range(len(order) - 1, -1, -1))
+    for y, cond in zip(ys, order):
         a, b = data[cond]["base"][1], data[cond]["abl"][1]
         ax.plot([a, b], [y, y], "-", color=GRID, lw=6, solid_capstyle="round", zorder=1)
         ax.scatter([a], [y], s=90, color=INTACT, zorder=3)
@@ -216,29 +211,37 @@ def fig_content_arm() -> None:
                         ha="center", fontsize=9, color=INTACT)
             ax.annotate(f"{b:.1f}%", (b, y), textcoords="offset points", xytext=(0, 11),
                         ha="center", fontsize=9, color=ABLATED)
-        ys.append(y)
-        labels.append(cond)
-        y -= 1
 
     ax.scatter([], [], s=90, color=INTACT, label="refusal intact")
     ax.scatter([], [], s=90, color=ABLATED, label="refusal ablated")
-    ax.set_yticks(ys, labels)
-
-    divider_y = (ys[3] + ys[4]) / 2  # between C3 and C8
-    ax.axhline(divider_y, color=GRID, lw=1, zorder=0)
-    ax.text(1.0, ys[0] + 0.55, "original design", transform=ax.get_yaxis_transform(),
-            ha="left", fontsize=8.5, color=INK, alpha=0.55, style="italic")
-    ax.text(1.0, ys[4] + 0.55, "task-content follow-on", transform=ax.get_yaxis_transform(),
-            ha="left", fontsize=8.5, color=INK, alpha=0.55, style="italic")
+    ax.set_yticks(ys, order)
 
     ax.set_xlim(0, 55)
     ax.set_ylim(min(ys) - 0.8, max(ys) + 0.8)
     ax.set_xlabel("Full compliance rate (%)", labelpad=10)
     _clean_axes(ax)
     ax.legend(loc="upper left", frameon=False, fontsize=9.5)
-    ax.set_title("Content-bearing peer framing: the original primary vs. the follow-on",
-                 fontsize=12.5, fontweight="bold", pad=14)
-    _save(fig, "content_arm")
+    ax.set_title(title, fontsize=12.5, fontweight="bold", pad=14)
+    _save(fig, name)
+
+
+def fig_original_design() -> None:
+    """C0/C1b/C2/C3 -- the four conditions the follow-on's own C8/C8b/C9/C8n
+    mirror structurally (baseline, speaker-free endorsement, named
+    endorsement, named refusal). The full nine-condition sweep already has
+    its own figure (`fig_conditions`, figures/conditions.png); this is not a
+    second copy of it."""
+    data = _content_arm_rates()
+    _dot_plot(data, ["C0", "C1b", "C2", "C3"], {"C2", "C3"},
+              "Original design: peer identity, no task content", "original_design")
+
+
+def fig_task_content() -> None:
+    """C8/C8b/C9/C8n, the task-content follow-on, with C0 repeated as the
+    same shared baseline used in `fig_original_design`."""
+    data = _content_arm_rates()
+    _dot_plot(data, ["C0", "C8", "C8b", "C9", "C8n"], {"C8", "C9"},
+              "Follow-on: task-content peer framing", "task_content")
 
 
 # --- companion table, markdown, same numbers as the figure plus the ---------
@@ -246,13 +249,27 @@ def fig_content_arm() -> None:
 
 
 def table_content_arm() -> None:
+    """Full appendix reference: all 13 conditions run in this project (the
+    original nine plus the four-condition follow-on), both arms, plus every
+    pre-registered contrast reported anywhere in the write-up. Everything a
+    reader would otherwise have to reassemble from Results 2/3 and the
+    follow-on section separately."""
     data = _content_arm_rates()
-    rows = ["C0", "C1b", "C2", "C3", "C8", "C8b", "C9", "C8n"]
+    rows = ["C0", "C1", "C1b", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C8b", "C9", "C8n"]
     board = {
-        "C0": "none (baseline)", "C1b": "peer endorsement, speakers stripped",
-        "C2": "peer endorsement, named peers", "C3": "the same peers, refusing",
-        "C8": "task-named endorsement, named peers", "C8b": "same as C8, speakers stripped",
-        "C9": "task-named refusal, named peers", "C8n": "task named, no valence (\"logged\")",
+        "C0": "none (baseline)",
+        "C1": "neutral non-agentic filler, token-matched to C2",
+        "C1b": "peer endorsement, speakers stripped",
+        "C2": "peer endorsement, named peers",
+        "C3": "the same peers, refusing",
+        "C4": "C2's board, word-shuffled",
+        "C5": "bare multi-agent identity, empty board",
+        "C6": "an audit record, no social framing",
+        "C7": "a peer hands the task off partway through",
+        "C8": "task-named endorsement, named peers",
+        "C8b": "same as C8, speakers stripped",
+        "C9": "task-named refusal, named peers",
+        "C8n": "task named, no valence (\"logged\")",
     }
     lines = [
         "| Condition | Board content | Base arm n | Base rate | Ablated arm n | Ablated rate |",
@@ -269,13 +286,21 @@ def table_content_arm() -> None:
         "",
         "| Contrast | Arm | Delta | p (item) | p (cluster) | Informative pairs |",
         "|---|---|---|---|---|---|",
-        "| C2 - C3 | cross-arm interaction | +5.77pp | 0.0408 | -- | -- |",
+        "| C2 - C3 | cross-arm interaction (primary) | +5.77pp | 0.0408 | -- | -- |",
         "| C2 - C3 | base (intact) | -3.37pp | 0.0654 | 0.0703 | -- |",
         "| C2 - C3 | ablated | +2.40pp | 0.3593 | 0.7905 | -- |",
+        "| C2 - C1b | cross-arm interaction | +3.85pp | 0.2299 | -- | -- |",
+        "| C1 - C1b | cross-arm interaction | +3.37pp | 0.4481 | -- | -- |",
+        "| C4 - C1b | cross-arm interaction | +1.92pp | 0.6637 | -- | -- |",
+        "| C5 - C1b | cross-arm interaction | +5.29pp | 0.1317 | -- | -- |",
+        "| C7 - C1b | cross-arm interaction | +0.00pp | 1.0000 | -- | -- |",
         "| C8 - C9 | base (intact) | +1.94pp | 0.523 | 0.302 | 22 / 208 |",
         "| C8 - C9 | ablated | +6.90pp | 0.016 | 0.027 | 30 / 208 |",
         "| C8 - C9 | cross-arm interaction | +4.48pp | -- | 0.28 (perm.) | -- |",
         "| C8 - C9 | ablated, engagement-restricted | +7.14pp | -- | 0.027 | -- |",
+        "| C8 - C2 | base (intact), Holm-3 | +4.83pp | 0.076 | -- | -- |",
+        "| C8b - C1b | base (intact), Holm-3 | +3.85pp | 0.134 | -- | -- |",
+        "| C8 - C8b | base (intact), Holm-3 (H6, speaker) | 0.00pp | 1.000 | -- | -- |",
     ]
     out = OUT / "content_arm_table.md"
     OUT.mkdir(exist_ok=True)
@@ -287,7 +312,8 @@ def table_content_arm() -> None:
 
 def main() -> None:
     fig_conditions()
-    fig_content_arm()
+    fig_original_design()
+    fig_task_content()
     table_content_arm()
 
 
