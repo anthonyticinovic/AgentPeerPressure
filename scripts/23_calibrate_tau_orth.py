@@ -8,7 +8,7 @@ ABLATED arm's real forward passes (`12_peer_loop.py`'s `projections()`, run insi
 `ablate_all_components`). Under real ablation, `h . r_arditi` is already zero at every
 layer (`ablate_all_components`'s docstring), so the raw projection and the
 post-hoc-orthogonalised one coincide exactly there (confirmed to float precision:
-`scripts/diag_orth_identity.py`, same-pass mean abs diff 0.0013). tau must be
+`scripts/diagnostics/diag_orth_identity.py`, same-pass mean abs diff 0.0013). tau must be
 calibrated on that same real-ablation distribution, not approximated from a different
 one -- which is what an earlier version of this script did.
 
