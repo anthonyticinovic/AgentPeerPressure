@@ -250,6 +250,7 @@ def main() -> None:
     ap.add_argument("--content-base", type=Path, required=True)
     ap.add_argument("--existing-base", type=Path, default=Path("results/gate_a_full_base_judged.json"))
     ap.add_argument("--content-abl", type=Path, default=None)
+    ap.add_argument("--existing-abl", type=Path, default=Path("results/gate_a_full_abl_judged.json"))
     args = ap.parse_args()
 
     items = load_joined(args.content_base, args.existing_base)
@@ -279,12 +280,33 @@ def main() -> None:
 
     out = {"primary": prim, "secondary": sec, "belief": bel, "exploratory": expl}
 
-    if prim["floor_pinned"] and args.content_abl and args.content_abl.exists():
-        print(f"\nprimary is floor-pinned (<{FLOOR_PINNED_THRESHOLD} informative items) "
-              "-- falling back to the cross-arm interaction, as the existing design does.")
-        abl_items = load_joined(args.content_abl, None)
-        out["fallback_interaction"] = fallback_interaction(items, abl_items)
-        print(json.dumps(out["fallback_interaction"], indent=1))
+    if args.content_abl and args.content_abl.exists():
+        # The existing nine-condition design's own headline pattern was null with
+        # refusal intact (Result 2) and only opened up under ablation (Result 3).
+        # The ablated arm is always worth reporting on that basis alone -- not just
+        # as a fallback for when the base arm is underpowered. Computed regardless
+        # of floor_pinned; the pre-registered PRIMARY stays the base-arm contrast
+        # either way (PLAN #6), this is the parallel check the design's own logic
+        # calls for.
+        abl_items = load_joined(args.content_abl, args.existing_abl)
+        print(f"\n=== ablated arm: C8 - C9 (mirrors Result 2->3's own pattern) ===")
+        abl_prim = primary(abl_items)
+        print(json.dumps(abl_prim, indent=1))
+        out["ablated_primary"] = abl_prim
+
+        print("\n=== ablated arm: secondary family (Holm-corrected, 3 tests) ===")
+        abl_sec = secondary_family(abl_items)
+        print(json.dumps(abl_sec, indent=1))
+        out["ablated_secondary"] = abl_sec
+
+        print("\n=== cross-arm interaction: does the C8-C9 gap widen under ablation? ===")
+        out["interaction"] = fallback_interaction(items, abl_items)
+        print(json.dumps(out["interaction"], indent=1))
+
+        if prim["floor_pinned"]:
+            print(f"\nNote: base-arm primary is floor-pinned (<{FLOOR_PINNED_THRESHOLD} "
+                  "informative items) -- the interaction above is this design's fallback "
+                  "primary in that case, not just a secondary check.")
     elif prim["floor_pinned"]:
         print(f"\nWARNING: primary is floor-pinned (<{FLOOR_PINNED_THRESHOLD} informative "
               "items) and no --content-abl was given for the fallback interaction.")
@@ -306,6 +328,11 @@ def main() -> None:
         out["source"]["content_abl"] = {
             "path": str(args.content_abl),
             "sha256_16": hashlib.sha256(args.content_abl.read_bytes()).hexdigest()[:16],
+        }
+    if args.content_abl and args.content_abl.exists() and args.existing_abl.exists():
+        out["source"]["existing_abl"] = {
+            "path": str(args.existing_abl),
+            "sha256_16": hashlib.sha256(args.existing_abl.read_bytes()).hexdigest()[:16],
         }
 
     out_path = args.content_base.with_name(args.content_base.stem + "_analysis.json")
