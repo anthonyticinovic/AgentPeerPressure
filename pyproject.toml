@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "Anthony Ticinovic", email = "aticinovic@woolworths.com.au" }
+    { name = "Anthony Ticinovic", email = "84017846+anthonyticinovic@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
