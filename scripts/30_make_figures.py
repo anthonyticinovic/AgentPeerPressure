@@ -195,10 +195,9 @@ def fig_content_arm() -> None:
               f"   abl {d['abl'][1]:5.1f}% (n={d['abl'][0]})")
 
     order = ["C0", "C1b", "C2", "C3", None, "C8", "C8b", "C9", "C8n"]
-    highlight = {"C2", "C3", "C8", "C9"}
 
-    fig, ax = plt.subplots(figsize=(7.5, 6))
-    ys, labels, label_colors = [], [], []
+    fig, ax = plt.subplots(figsize=(7, 5.5))
+    ys, labels = [], []
     y = len(order) - 1
     for cond in order:
         if cond is None:
@@ -208,22 +207,13 @@ def fig_content_arm() -> None:
         ax.plot([a, b], [y, y], "-", color=GRID, lw=6, solid_capstyle="round", zorder=1)
         ax.scatter([a], [y], s=90, color=INTACT, zorder=3)
         ax.scatter([b], [y], s=90, color=ABLATED, zorder=3)
-        if cond in highlight:
-            ax.annotate(f"{a:.1f}%", (a, y), textcoords="offset points", xytext=(0, 12),
-                        ha="center", fontsize=9, color=INTACT, fontweight="bold")
-            ax.annotate(f"{b:.1f}%", (b, y), textcoords="offset points", xytext=(0, 12),
-                        ha="center", fontsize=9, color=ABLATED, fontweight="bold")
         ys.append(y)
-        labels.append(f"$\\bf{{{cond}}}$" if cond in highlight else cond)
-        label_colors.append(ACCENT if cond in highlight else INK)
+        labels.append(cond)
         y -= 1
 
     ax.scatter([], [], s=90, color=INTACT, label="refusal intact")
     ax.scatter([], [], s=90, color=ABLATED, label="refusal ablated")
-
     ax.set_yticks(ys, labels)
-    for tick, c in zip(ax.get_yticklabels(), label_colors):
-        tick.set_color(c)
 
     divider_y = (ys[3] + ys[4]) / 2  # between C3 and C8
     ax.axhline(divider_y, color=GRID, lw=1, zorder=0)
@@ -239,11 +229,6 @@ def fig_content_arm() -> None:
     ax.legend(loc="upper left", frameon=False, fontsize=9.5)
     ax.set_title("Content-bearing peer framing: the original primary vs. the follow-on",
                  fontsize=12.5, fontweight="bold", pad=14)
-    fig.text(0.5, 0.01,
-             "amber = the two valence-flip pairs  ·  original C2-C3 interaction +5.77pp, p=0.0408\n"
-             "C8-C9: base +1.9pp, p=0.52 (null)  ·  ablated +6.9pp, p=0.027 (cluster)  ·  AgentHarm, 208 items, Qwen3.5-9B",
-             ha="center", fontsize=9, color=INK, alpha=0.75)
-    fig.subplots_adjust(bottom=0.18)
     _save(fig, "content_arm")
 
 

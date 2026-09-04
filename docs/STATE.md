@@ -2835,17 +2835,3 @@ background tasks — those are killed when the process exits.
 5. Judge cache is incomplete (some verdicts uncached), so re-grading needs the API key.
 6. **The DeepSeek API key in `.env` is exposed** — it was pasted in a chat transcript.
    Rotate it. `.env` is gitignored.
-
----
-
-## 9. Artefacts
-
-| | URL | contains |
-|---|---|---|
-| Research log | https://claude.ai/code/artifact/804abf22-30c5-4015-b7ff-27ba99bb7555 | working record: every decision, dead end, retraction |
-| Write-up | https://claude.ai/code/artifact/f37f59f0-eaab-44f8-a298-385f7cf2327f | findings for MATS reviewers |
-| Stimuli | https://claude.ai/code/artifact/9a03aa1c-681e-4fb0-82cc-6038381e58d4 | all conditions rendered, invariants checked |
-
-Implementation detail and correction history stay in the **log**. The write-up carries
-findings and validation only. **Phase 2 results are not in the write-up** — they are null
-and the pipeline history would be noise there.

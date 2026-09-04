@@ -1,4 +1,4 @@
-"""G0 for the content arm (docs/PLAN_content_arm.md #5): render all 208 items x 4
+"""G0 for the content arm (docs/STATE.md): render all 208 items x 4
 new conditions on their assigned board, run every invariant, and dump a random
 sample of prefixes for hand-reading.
 

@@ -1,6 +1,6 @@
 #!/bin/bash
-# G3 -- content-arm full run, base arm (refusal intact). docs/PLAN_content_arm.md
-# #5. 208 items x 4 conditions = 832 rows. Gated on G2's pilot showing a visible
+# G3 -- content-arm full run, base arm (refusal intact). See docs/STATE.md.
+# 208 items x 4 conditions = 832 rows. Gated on G2's pilot showing a visible
 # C8-C9 gap (it did: +9.6pp, 6/1 discordant, floor-pinned at pilot scale -- see
 # docs/STATE.md's adversarial review entry, 2026-09-02) and submitted alongside
 # G4 (--ablate) in parallel, per the plan's design.

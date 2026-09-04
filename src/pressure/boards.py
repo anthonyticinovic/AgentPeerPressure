@@ -15,7 +15,7 @@ Design invariants, all asserted in code:
    semantics would confound endorsement with a restatement of the request.
    C8/C8b/C9/C8n are the deliberate, code-checked exception: they add task-bound
    content, generated at render time and bounded by `assert_bounded_task_reference`
-   rather than forbidden outright. See docs/PLAN_content_arm.md — Hu & Qu
+   rather than forbidden outright. See docs/STATE.md — Hu & Qu
    (arXiv:2607.05545) show the *asserted content about the item*, not the speaker,
    drives conformity, and invariant 2 as written held that driver at zero across
    all nine prior conditions. The referent is `item_reference()`: the AgentHarm

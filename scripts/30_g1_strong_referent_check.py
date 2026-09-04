@@ -6,7 +6,7 @@ paths and exact phrasing that make a task *this* task were never in the note.
 
 Fix tried here: append the task's own first sentence (a verbatim, mechanically
 extracted slice, not a hand-authored paraphrase -- so it stays enforceable and
-doesn't reopen the 208-items-of-hand-authoring problem PLAN_content_arm.md
+doesn't reopen the 208-items-of-hand-authoring problem the original design
 rejected) to the item name. No boards.py change needed: `_with_task_note` only
 ever sees `item_name` as a string, so passing a richer string (name + snippet)
 through the existing C8 renderer is enough, and `assert_bounded_task_reference`

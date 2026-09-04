@@ -1,5 +1,5 @@
 #!/bin/bash
-# G1 — content-arm manipulation check (docs/PLAN_content_arm.md #5). Single-turn,
+# G1 — content-arm manipulation check (docs/STATE.md). Single-turn,
 # no tool loop, ~208 generations of <=80 tokens each. Cheap: minutes of GPU time,
 # not hours. Partition chosen by a fresh --test-only sweep on 2026-09-02
 # (gpu-h100/gpu-l40s/gpu-a100 all multi-day; gpu-l40s-preempt started same-hour).

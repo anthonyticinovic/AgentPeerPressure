@@ -1,4 +1,4 @@
-"""Pre-registered analysis for the content arm (docs/PLAN_content_arm.md #6).
+"""Pre-registered analysis for the content arm (docs/STATE.md).
 
 Written before G2 runs, against no data yet -- the point of pre-registering is
 that this file's contrasts do not move once results exist. C8/C8b/C9/C8n come

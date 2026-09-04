@@ -1,5 +1,5 @@
 #!/bin/bash
-# G2 -- content-arm pilot (docs/PLAN_content_arm.md #5). 52 items (--one-per-grader),
+# G2 -- content-arm pilot (docs/STATE.md). 52 items (--one-per-grader),
 # 4 new conditions, base arm only (no --ablate). Gated on G1 passing first.
 #
 # Adapt the #SBATCH header to your cluster; see hpc/README.md. Submit from the

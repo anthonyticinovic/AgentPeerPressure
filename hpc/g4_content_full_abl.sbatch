@@ -1,8 +1,8 @@
 #!/bin/bash
 # G4 -- content-arm full run, ablated arm (refusal direction ablated). Same as
 # G3 (hpc/g3_content_full_base.sbatch) plus --ablate. Submitted in parallel with
-# G3 to different --out paths on independent GPUs, per docs/PLAN_content_arm.md
-# #5's parallel-arms decision.
+# G3 to different --out paths on independent GPUs, per the parallel-arms decision
+# in docs/STATE.md.
 #
 #   mkdir -p logs/slurm && sbatch hpc/g4_content_full_abl.sbatch
 #SBATCH --job-name=g4_abl

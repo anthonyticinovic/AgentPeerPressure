@@ -1,4 +1,4 @@
-"""G1 (docs/PLAN_content_arm.md #5): does the model actually read and attribute the
+"""G1 (docs/STATE.md): does the model actually read and attribute the
 C8 board note before any generation budget is spent on G2-G4?
 
 Single-turn, no tool loop, no grading rubric, greedy. Renders the C8 prefix (board
